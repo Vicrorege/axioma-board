@@ -3,12 +3,10 @@ import type { Editor } from 'tldraw';
 import { createShapeId } from 'tldraw';
 import {
   Plus,
-  Sparkles,
   BookOpen,
   Save,
   Check,
   Lock,
-  Palette,
   LogOut,
   LogIn,
 } from 'lucide-react';
@@ -22,8 +20,6 @@ interface TopBarProps {
   onSave: () => void;
   isSaving: boolean;
   isSaved: boolean;
-  onToggleAiDrawer: () => void;
-  isAiDrawerOpen: boolean;
   onLock: () => void;
   boards: Array<{ id: string; title: string; created_at: string; updated_at: string }>;
   activeBoardId: string | null;
@@ -33,8 +29,6 @@ interface TopBarProps {
   currentUser: User | null;
   onOpenAuth: () => void;
   onLogout: () => void;
-  isStylesOpen: boolean;
-  onToggleStyles: () => void;
 }
 
 const MATH_PRESETS = [
@@ -53,8 +47,6 @@ export const TopBar: React.FC<TopBarProps> = ({
   onSave,
   isSaving,
   isSaved,
-  onToggleAiDrawer,
-  isAiDrawerOpen,
   onLock,
   boards,
   activeBoardId,
@@ -64,8 +56,6 @@ export const TopBar: React.FC<TopBarProps> = ({
   currentUser,
   onOpenAuth,
   onLogout,
-  isStylesOpen,
-  onToggleStyles,
 }) => {
   const [showPresets, setShowPresets] = useState(false);
 
@@ -166,32 +156,6 @@ export const TopBar: React.FC<TopBarProps> = ({
             </div>
           )}
         </div>
-
-        {/* Palette / StylePanel Toggle */}
-        <button
-          onClick={onToggleStyles}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
-            isStylesOpen
-              ? 'bg-amber-100 text-amber-800 border border-amber-300 font-semibold'
-              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-          }`}
-          title="Свойства и палитра цветов (также открывается по двойному клику)"
-        >
-          <Palette size={14} />
-          <span>Стили</span>
-        </button>
-
-        <button
-          onClick={onToggleAiDrawer}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition shadow-sm cursor-pointer ${
-            isAiDrawerOpen
-              ? 'bg-purple-600 text-white shadow-purple-600/30'
-              : 'bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100'
-          }`}
-        >
-          <Sparkles size={14} />
-          <span>AI Агент</span>
-        </button>
       </div>
 
       {/* Right Tools & User Profile */}

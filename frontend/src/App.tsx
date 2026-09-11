@@ -6,7 +6,6 @@ import 'katex/dist/katex.min.css';
 
 import { MathBlockShapeUtil } from './shapes/MathBlockShapeUtil';
 import { TopBar } from './components/TopBar';
-import { AISidebar } from './components/AISidebar';
 import { DevPlaceholder } from './components/DevPlaceholder';
 import { AuthModal } from './components/AuthModal';
 import { sendClientLog } from './services/telemetry';
@@ -163,7 +162,6 @@ export default function App() {
   const [arrowFlyout, setArrowFlyout] = useState<{ left: number } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(true);
-  const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false);
   const [isDevUnlocked, setIsDevUnlocked] = useState<boolean>(checkIsUnlocked);
   const autoSaveTimerRef = useRef<any>(null);
 
@@ -516,20 +514,6 @@ export default function App() {
     }, 800);
   };
 
-  const handleRefreshBoard = useCallback(async () => {
-    const curBoard = boardRef.current;
-    const curEditor = editorRef.current;
-    if (!curBoard || !curEditor) return;
-    try {
-      const refreshed = await boardsApi.get(curBoard.id);
-      setBoard(refreshed);
-      syncBoardToCanvas(refreshed, curEditor);
-      setIsSaved(true);
-    } catch (e) {
-      console.error('Refresh board failed', e);
-    }
-  }, [syncBoardToCanvas]);
-
   const handleAuthSuccess = (user: User) => {
     setCurrentUser(user);
     fetchBoards();
@@ -552,7 +536,16 @@ export default function App() {
       DebugMenu: null,
       DebugPanel: null,
       SharePanel: null,
-      StylePanel: (props) => (isStylesOpen ? <DefaultStylePanel {...props} /> : null),
+      StylePanel: (props) => {
+        if (!isStylesOpen) return null;
+        return (
+          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 pointer-events-auto animate-toolPopOut">
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200/90 p-1">
+              <DefaultStylePanel {...props} />
+            </div>
+          </div>
+        );
+      },
       Toolbar: (props) => (
         <div
           className="relative"
@@ -603,8 +596,6 @@ export default function App() {
         onSave={() => executeSave(false)}
         isSaving={isSaving}
         isSaved={isSaved}
-        onToggleAiDrawer={() => setIsAiDrawerOpen(!isAiDrawerOpen)}
-        isAiDrawerOpen={isAiDrawerOpen}
         onLock={handleLock}
         boards={boardsList}
         activeBoardId={board?.id || null}
@@ -614,8 +605,6 @@ export default function App() {
         currentUser={currentUser}
         onOpenAuth={() => setIsAuthOpen(true)}
         onLogout={handleLogout}
-        isStylesOpen={isStylesOpen}
-        onToggleStyles={() => setIsStylesOpen(!isStylesOpen)}
       />
 
       {/* Tldraw Canvas wrapped in Error Boundary */}
@@ -677,17 +666,6 @@ export default function App() {
             <span>Кривая</span>
           </button>
         </div>
-      )}
-
-      {/* AI Agent Drawer */}
-      {board && (
-        <AISidebar
-          boardId={board.id}
-          isOpen={isAiDrawerOpen}
-          onClose={() => setIsAiDrawerOpen(false)}
-          editor={editor}
-          onRefreshBoard={handleRefreshBoard}
-        />
       )}
 
       {/* User Login / Register Modal */}

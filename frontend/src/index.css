@@ -24,18 +24,17 @@ body,
   r: 1.5px !important;
 }
 
-/* Ensure Tldraw style panel emerges with clean animation */
-.tlui-layout__top__right {
-  top: 68px !important;
-  right: 16px !important;
+/* Style Panel emerging directly from bottom toolbar */
+.tlui-style-panel {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .tlui-style-panel__wrapper {
-  margin-top: 0 !important;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
-  border: 1px solid rgba(226, 232, 240, 0.8) !important;
-  border-radius: 1rem !important;
-  animation: toolPopOut 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+  border: none !important;
 }
 
 @keyframes toolPopOut {
