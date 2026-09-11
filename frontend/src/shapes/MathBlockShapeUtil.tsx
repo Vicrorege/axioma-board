@@ -171,20 +171,23 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
   const [activeMethodIndex, setActiveMethodIndex] = useState(0);
   const [showDetails, setShowDetails] = useState(false);
   const hoverStartTimeRef = useRef(0);
-  const cardContainerRef = useRef<HTMLDivElement>(null);
+  const innerContentRef = useRef<HTMLDivElement>(null);
 
-  // Auto-fit card height to content so it never cramps or overflows
+  // Auto-fit card height to ALL content (header, formula, actions, result, comment, notes)
   useEffect(() => {
-    const el = cardContainerRef.current;
+    const el = innerContentRef.current;
     if (!el) return;
 
     const measureAndSyncHeight = () => {
-      const neededHeight = el.scrollHeight;
-      if (neededHeight > 0 && Math.abs(neededHeight - h) > 6) {
+      // Natural unconstrained height of the entire card's content
+      const rectH = el.getBoundingClientRect().height;
+      const scrollH = el.scrollHeight;
+      const neededHeight = Math.max(rectH, scrollH);
+      if (neededHeight > 0 && Math.abs(neededHeight - h) > 4) {
         editor.updateShape({
           id: shape.id,
           type: 'math-block',
-          props: { h: Math.max(140, Math.ceil(neededHeight)) },
+          props: { h: Math.max(130, Math.ceil(neededHeight) + 6) },
         });
       }
     };
@@ -199,7 +202,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
       clearTimeout(timer);
       ro.disconnect();
     };
-  }, [shape.id, latex, comment, resultLatex, error, isEditing, h]);
+  }, [shape.id, latex, comment, resultLatex, error, isEditing, h, actions.length, methodsJson, showDetails]);
 
   const handleCardWheel = (e: React.WheelEvent) => {
     const now = performance.now();
@@ -558,17 +561,17 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
 
   return (
     <div
-      ref={cardContainerRef}
       data-math-card="true"
       onMouseEnter={() => {
         hoverStartTimeRef.current = performance.now();
       }}
       onWheel={handleCardWheel}
       onWheelCapture={handleCardWheel}
-      className="w-full h-full flex flex-col bg-white rounded-2xl shadow-lg border border-slate-200/90 overflow-hidden font-sans select-none text-slate-800 transition-shadow hover:shadow-xl cursor-default"
+      className="w-full h-full bg-white rounded-2xl shadow-lg border border-slate-200/90 overflow-hidden font-sans select-none text-slate-800 transition-shadow hover:shadow-xl cursor-default"
       style={{ borderTop: `6px solid ${color}` }}
     >
-      {/* Draggable Card Header */}
+      <div ref={innerContentRef} className="w-full flex flex-col">
+        {/* Draggable Card Header */}
       <div
         className="flex items-center justify-between px-3 py-2 bg-slate-50/90 border-b border-slate-100 cursor-grab active:cursor-grabbing text-slate-500 hover:text-slate-800 transition"
         title="Потяните за шапку, чтобы переместить карточку"
@@ -799,6 +802,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
             className="mt-auto text-xs text-slate-500 bg-transparent border-t border-slate-100 pt-1.5 focus:outline-none focus:text-slate-800 cursor-text"
           />
         )}
+      </div>
       </div>
     </div>
   );
