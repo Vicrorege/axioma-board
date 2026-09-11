@@ -678,6 +678,11 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
             value={title}
             onPointerDown={(e) => e.stopPropagation()}
             onKeyDown={(e) => {
+              const isUndoRedo = (e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z' || e.key === 'y' || e.key === 'Y');
+              if (isUndoRedo) {
+                // Let global tldraw undo/redo handler catch it
+                return;
+              }
               if (e.key === 'Backspace' || e.key === 'Delete') {
                 e.stopPropagation();
               }
@@ -920,6 +925,11 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
             value={comment}
             onPointerDown={(e) => e.stopPropagation()}
             onKeyDown={(e) => {
+              const isUndoRedo = (e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z' || e.key === 'y' || e.key === 'Y');
+              if (isUndoRedo) {
+                // Let global tldraw undo/redo handler catch it
+                return;
+              }
               if (e.key === 'Backspace' || e.key === 'Delete') {
                 e.stopPropagation();
               }
