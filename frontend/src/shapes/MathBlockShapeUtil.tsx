@@ -158,6 +158,30 @@ function extractFormulaAndExplanation(text: string): { explanation: string; form
   return { explanation: s, formula: '' };
 }
 
+function estimateCardHeight(latexStr: string, commentStr: string): number {
+  const l = (latexStr || '').trim();
+  const c = (commentStr || '').trim();
+
+  const baseH = 46;
+  let formulaH = 0;
+  if (l) {
+    if (l.includes('\\frac') || l.includes('\\int') || l.includes('\\sum') || l.includes('\\begin')) {
+      formulaH = 75;
+    } else {
+      formulaH = 50;
+    }
+  }
+
+  let textH = 0;
+  if (c) {
+    const charsPerLine = 40;
+    const lines = Math.max(1, Math.ceil(c.length / charsPerLine));
+    textH = 20 + lines * 22;
+  }
+
+  return Math.max(140, baseH + formulaH + textH + 34);
+}
+
 const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
   const { w, h, title, latex, resultLatex, comment, color, isEditing, error, methodsJson } = shape.props;
   const [loadingOp, setLoadingOp] = useState<string | null>(null);
@@ -184,11 +208,34 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
       const scrollH = el.scrollHeight;
       const neededHeight = Math.max(rectH, scrollH);
       if (neededHeight > 0 && Math.abs(neededHeight - h) > 4) {
+        const newH = Math.max(130, Math.ceil(neededHeight) + 6);
+        const delta = newH - h;
         editor.updateShape({
           id: shape.id,
           type: 'math-block',
-          props: { h: Math.max(130, Math.ceil(neededHeight) + 6) },
+          props: { h: newH },
         });
+
+        // If card grew taller at runtime, dynamically push down all cards below it in the same column!
+        if (delta > 4) {
+          const allShapes = editor.getCurrentPageShapes();
+          const cardsBelow = allShapes.filter(
+            (s: any) =>
+              s.id !== shape.id &&
+              s.type === 'math-block' &&
+              Math.abs(s.x - shape.x) < 40 &&
+              s.y > shape.y
+          );
+          if (cardsBelow.length > 0) {
+            editor.updateShapes(
+              cardsBelow.map((s: any) => ({
+                id: s.id,
+                type: 'math-block',
+                y: s.y + delta,
+              }))
+            );
+          }
+        }
       }
     };
 
@@ -202,7 +249,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
       clearTimeout(timer);
       ro.disconnect();
     };
-  }, [shape.id, latex, comment, resultLatex, error, isEditing, h, actions.length, methodsJson, showDetails]);
+  }, [shape.id, shape.x, shape.y, latex, comment, resultLatex, error, isEditing, h, actions.length, methodsJson, showDetails]);
 
   const handleCardWheel = (e: React.WheelEvent) => {
     const now = performance.now();
@@ -321,30 +368,39 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
 
     if (stepsList.length > 0) {
       const stepWidth = 430;
-      const stepHeight = 175;
       const spacingX = 90;
-      const spacingY = 45;
+      const spacingY = 36;
       const maxRowsPerCol = stepsList.length > 4 ? 3 : 2;
+      const numCols = Math.ceil(stepsList.length / maxRowsPerCol);
+
+      // Track running Y for each column so cards NEVER overlap!
+      const colRunningY = new Array(numCols).fill(shape.y);
 
       const stepIds: any[] = [];
-      const stepCoords: { x: number; y: number }[] = [];
+      const stepCards: { id: any; x: number; y: number; w: number; h: number }[] = [];
 
       stepsList.forEach((stepText, idx) => {
         const stepCardId = createShapeId();
         stepIds.push(stepCardId);
 
         const col = Math.floor(idx / maxRowsPerCol);
-        const row = idx % maxRowsPerCol;
-
-        const nextX = shape.x + w + spacingX + col * (stepWidth + spacingX);
-        const nextY = shape.y + row * (stepHeight + spacingY);
-        stepCoords.push({ x: nextX, y: nextY });
-
-        const isLast = idx === stepsList.length - 1;
 
         const { explanation, formula } = extractFormulaAndExplanation(stepText);
-        const cardLatex = formula || (isLast ? resultLatex : '');
+        const cardLatex = formula || (idx === stepsList.length - 1 ? resultLatex : '');
         const cardComment = explanation;
+
+        // Accurately calculate height based on the card's specific formula & explanation!
+        const cardHeight = estimateCardHeight(cardLatex, cardComment);
+
+        const nextX = shape.x + w + spacingX + col * (stepWidth + spacingX);
+        const nextY = colRunningY[col];
+
+        // Advance column Y strictly by this card's height + gap
+        colRunningY[col] += cardHeight + spacingY;
+
+        stepCards.push({ id: stepCardId, x: nextX, y: nextY, w: stepWidth, h: cardHeight });
+
+        const isLast = idx === stepsList.length - 1;
 
         editor.createShape({
           id: stepCardId,
@@ -353,7 +409,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
           y: nextY,
           props: {
             w: stepWidth,
-            h: stepHeight,
+            h: cardHeight,
             title: `Шаг ${idx + 1}`,
             latex: cardLatex,
             resultLatex: isLast ? (resultLatex || cardLatex) : '',
@@ -368,6 +424,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
       // 1. Arrow from Parent Card to Step 1
       try {
         const firstArrowId = createShapeId();
+        const firstStep = stepCards[0];
         editor.createShape({
           id: firstArrowId,
           type: 'arrow',
@@ -375,7 +432,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
           y: shape.y + h / 2,
           props: {
             start: { x: 0, y: 0 },
-            end: { x: spacingX, y: stepHeight / 2 - h / 2 },
+            end: { x: spacingX, y: firstStep.y + firstStep.h / 2 - (shape.y + h / 2) },
             bend: 0,
             color: 'violet',
             arrowheadEnd: 'arrow',
@@ -397,7 +454,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
         editor.createBinding({
           type: 'arrow',
           fromId: firstArrowId,
-          toId: stepIds[0],
+          toId: firstStep.id,
           props: {
             terminal: 'end',
             normalizedAnchor: { x: 0, y: 0.5 },
@@ -410,27 +467,29 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
       }
 
       // 2. Sequential bound arrows between steps (Step[i-1] -> Step[i])
-      for (let i = 1; i < stepIds.length; i++) {
+      for (let i = 1; i < stepCards.length; i++) {
         try {
           const arrowId = createShapeId();
-          const prevCoord = stepCoords[i - 1];
-          const curCoord = stepCoords[i];
+          const prevCard = stepCards[i - 1];
+          const curCard = stepCards[i];
 
-          const isSameCol = Math.abs(curCoord.x - prevCoord.x) < 20;
+          const isSameCol = Math.abs(curCard.x - prevCard.x) < 20;
 
           editor.createShape({
             id: arrowId,
             type: 'arrow',
-            x: isSameCol ? prevCoord.x + stepWidth / 2 : prevCoord.x + stepWidth,
-            y: isSameCol ? prevCoord.y + stepHeight : prevCoord.y + stepHeight / 2,
+            x: isSameCol ? prevCard.x + prevCard.w / 2 : prevCard.x + prevCard.w,
+            y: isSameCol ? prevCard.y + prevCard.h : prevCard.y + prevCard.h / 2,
             props: {
               start: { x: 0, y: 0 },
               end: {
-                x: isSameCol ? 0 : curCoord.x - (prevCoord.x + stepWidth),
-                y: isSameCol ? spacingY : curCoord.y + stepHeight / 2 - (prevCoord.y + stepHeight / 2),
+                x: isSameCol ? 0 : curCard.x - (prevCard.x + prevCard.w),
+                y: isSameCol
+                  ? curCard.y - (prevCard.y + prevCard.h)
+                  : curCard.y + curCard.h / 2 - (prevCard.y + prevCard.h / 2),
               },
               bend: isSameCol ? 0 : 20,
-              color: i === stepIds.length - 1 ? 'green' : 'violet',
+              color: i === stepCards.length - 1 ? 'green' : 'violet',
               arrowheadEnd: 'arrow',
             },
           });
@@ -438,7 +497,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
           editor.createBinding({
             type: 'arrow',
             fromId: arrowId,
-            toId: stepIds[i - 1],
+            toId: prevCard.id,
             props: {
               terminal: 'start',
               normalizedAnchor: isSameCol ? { x: 0.5, y: 1 } : { x: 1, y: 0.5 },
@@ -450,7 +509,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
           editor.createBinding({
             type: 'arrow',
             fromId: arrowId,
-            toId: stepIds[i],
+            toId: curCard.id,
             props: {
               terminal: 'end',
               normalizedAnchor: isSameCol ? { x: 0.5, y: 0 } : { x: 0, y: 0.5 },
