@@ -42,6 +42,28 @@ body,
   border-color: #334155 !important;
 }
 
+/* Ensure math-field and KaTeX render bright white in dark mode */
+.dark math-field {
+  color: #f8fafc !important;
+  --caret-color: #60a5fa !important;
+  --selection-background-color: #2563eb !important;
+  --selection-color: #ffffff !important;
+  --text-highlight-background-color: #1e3a8a !important;
+  --primary: #93c5fd !important;
+}
+
+.dark math-field::part(content) {
+  color: #f8fafc !important;
+}
+
+.dark .katex {
+  color: #f8fafc !important;
+}
+
+.dark .katex-html {
+  color: #f8fafc !important;
+}
+
 /* Style Panel emerging directly from bottom toolbar */
 .tlui-style-panel {
   background: transparent !important;

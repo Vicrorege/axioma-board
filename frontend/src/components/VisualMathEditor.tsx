@@ -99,7 +99,21 @@ export const VisualMathEditor: React.FC<VisualMathEditorProps> = ({
       setTimeout(() => mf.focus(), 50);
     }
 
+    // Adapt math-field color scheme dynamically
+    const updateMfTheme = () => {
+      const isDark = document.documentElement.classList.contains('dark');
+      mf.style.setProperty('--caret-color', isDark ? '#60a5fa' : '#2563eb');
+      mf.style.setProperty('--selection-background-color', isDark ? '#2563eb' : '#bfdbfe');
+      mf.style.setProperty('--selection-color', '#ffffff');
+      mf.style.color = isDark ? '#f8fafc' : '#0f172a';
+    };
+    updateMfTheme();
+
+    const obs = new MutationObserver(updateMfTheme);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+
     return () => {
+      obs.disconnect();
       mf.removeEventListener('input', handleInput);
       mf.removeEventListener('keydown', handleKeyDown);
       mf.removeEventListener('blur', handleBlur);
@@ -143,7 +157,7 @@ export const VisualMathEditor: React.FC<VisualMathEditorProps> = ({
       className="flex flex-col gap-2 w-full select-text"
     >
       {/* Sleek Convenient Quick Math Toolbar */}
-      <div className="flex items-center justify-between gap-1 p-1 bg-slate-50/90 rounded-xl border border-slate-200/80">
+      <div className="flex items-center justify-between gap-1 p-1 bg-slate-50/90 dark:bg-slate-800/80 rounded-xl border border-slate-200/80 dark:border-slate-700">
         <div className="flex items-center gap-1 overflow-x-auto">
           {ESSENTIAL_MATH_TOOLS.map((tool) => (
             <button
@@ -151,7 +165,7 @@ export const VisualMathEditor: React.FC<VisualMathEditorProps> = ({
               type="button"
               onClick={() => insertTemplate(tool.latex)}
               title={tool.title}
-              className="px-2 py-0.5 text-xs font-semibold bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 text-slate-700 rounded-lg border border-slate-200/80 shadow-2xs transition cursor-pointer"
+              className="px-2 py-0.5 text-xs font-semibold bg-white dark:bg-slate-700/80 hover:bg-blue-50 dark:hover:bg-slate-600 hover:text-blue-700 dark:hover:text-blue-300 text-slate-700 dark:text-slate-200 rounded-lg border border-slate-200/80 dark:border-slate-600 shadow-2xs transition cursor-pointer"
             >
               {tool.label}
             </button>
@@ -163,7 +177,7 @@ export const VisualMathEditor: React.FC<VisualMathEditorProps> = ({
           type="button"
           onClick={toggleVirtualKeyboard}
           title="Экранная клавиатура"
-          className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-white hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 rounded-lg border border-slate-200/80 cursor-pointer shadow-2xs transition shrink-0 ml-1"
+          className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-white dark:bg-slate-700/80 hover:bg-indigo-50 dark:hover:bg-slate-600 hover:text-indigo-600 dark:hover:text-indigo-300 text-slate-600 dark:text-slate-200 rounded-lg border border-slate-200/80 dark:border-slate-600 cursor-pointer shadow-2xs transition shrink-0 ml-1"
         >
           <Keyboard size={12} />
           <span>Клавиатура</span>
@@ -171,7 +185,7 @@ export const VisualMathEditor: React.FC<VisualMathEditorProps> = ({
       </div>
 
       {/* Interactive WYSIWYG Math Field */}
-      <div className="relative border-2 border-blue-500 rounded-xl bg-white p-2.5 shadow-sm transition-all focus-within:ring-2 focus-within:ring-blue-400/30">
+      <div className="relative border-2 border-blue-500 rounded-xl bg-white dark:bg-slate-950 p-2.5 shadow-sm transition-all focus-within:ring-2 focus-within:ring-blue-400/30">
         <math-field
           ref={mfRef}
           math-virtual-keyboard-policy="manual"
@@ -187,7 +201,7 @@ export const VisualMathEditor: React.FC<VisualMathEditorProps> = ({
           {value}
         </math-field>
 
-        <div className="mt-1 flex items-center justify-between text-[11px] text-slate-400 pt-1.5 border-t border-slate-100">
+        <div className="mt-1 flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500 pt-1.5 border-t border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2">
             <span>Tab — след. блок</span>
             <span>•</span>

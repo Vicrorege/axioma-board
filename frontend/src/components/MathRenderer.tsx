@@ -29,7 +29,7 @@ export const MathRenderer: React.FC<MathRendererProps> = ({
 
   if (!latex || !latex.trim()) {
     return (
-      <span className="text-slate-400 font-medium text-sm flex items-center gap-1.5">
+      <span className="text-slate-400 dark:text-slate-500 font-medium text-sm flex items-center gap-1.5">
         <span>✎ Введите математическое выражение...</span>
       </span>
     );
@@ -37,7 +37,7 @@ export const MathRenderer: React.FC<MathRendererProps> = ({
 
   return (
     <div
-      className={`overflow-x-auto overflow-y-hidden py-1 ${className}`}
+      className={`overflow-x-auto overflow-y-hidden py-1 text-slate-800 dark:text-slate-100 ${className}`}
       style={{ fontSize }}
       dangerouslySetInnerHTML={{ __html: html }}
     />
