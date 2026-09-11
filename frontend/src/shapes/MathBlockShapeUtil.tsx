@@ -7,7 +7,7 @@ import {
 } from 'tldraw';
 import type { TLShape, Editor } from 'tldraw';
 import { GripHorizontal, Edit3, Check, Trash2, ArrowRight } from 'lucide-react';
-import { MathRenderer } from '../components/MathRenderer';
+import { MathRenderer, FormattedStepText } from '../components/MathRenderer';
 import { VisualMathEditor } from '../components/VisualMathEditor';
 import { mathApi } from '../services/api';
 import type { SolutionMethod } from '../types/math';
@@ -118,7 +118,12 @@ function getInitialActions(rawLatex: string): DynamicAction[] {
 const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
   const { w, h, title, latex, resultLatex, comment, color, isEditing, error, methodsJson } = shape.props;
   const [loadingOp, setLoadingOp] = useState<string | null>(null);
-  const [actions, setActions] = useState<DynamicAction[]>(() => getInitialActions(latex));
+
+  // Instant 0ms synchronous heuristic actions
+  const instantActions = useMemo(() => getInitialActions(latex), [latex]);
+  const [aiActions, setAiActions] = useState<DynamicAction[] | null>(null);
+  const actions = aiActions && aiActions.length > 0 ? aiActions : instantActions;
+
   const [solutionMethods, setSolutionMethods] = useState<SolutionMethod[]>([]);
   const [activeMethodIndex, setActiveMethodIndex] = useState(0);
 
@@ -137,23 +142,24 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
     return [];
   }, [methodsJson]);
 
-  // Dynamic Context-Aware Action Adaptation
+  // Debounced deep AI action suggestions from OmniRoute
   useEffect(() => {
     if (!hasExpression) {
-      setActions([]);
+      setAiActions(null);
       return;
     }
 
-    setActions(getInitialActions(latex));
+    // Clear previous AI override on new input so instantActions take over with 0ms delay
+    setAiActions(null);
 
     const timer = setTimeout(async () => {
       try {
         const res = await mathApi.getSuggestedActions(latex);
         if (res && res.actions && res.actions.length > 0) {
-          setActions(res.actions);
+          setAiActions(res.actions);
         }
       } catch {
-        // Heuristic fallback remains in place
+        // Instant heuristic fallback remains in place
       }
     }, 600);
 
@@ -219,37 +225,128 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
     }
   };
 
-  // Branch out to a child card with step-by-step breakdown & straight-to-curved bound arrow
+  // Branch out: each step becomes an individual connected card in a horizontal chain
   const handleBranchOut = () => {
     if (!resultLatex) return;
+
+    const activeMethod = solutionMethods[activeMethodIndex] || solutionMethods[0];
+    const stepsList = activeMethod?.steps || [];
+
+    if (stepsList.length > 0) {
+      const stepWidth = 380;
+      const stepHeight = 220;
+      const spacingX = 100;
+
+      let prevId = shape.id;
+      let prevX = shape.x;
+      let prevY = shape.y;
+      let prevW = w;
+      let prevH = h;
+
+      stepsList.forEach((stepText, idx) => {
+        const stepCardId = createShapeId();
+        const nextX = prevX + prevW + spacingX;
+        const nextY = shape.y; // horizontal alignment initially
+
+        const isLast = idx === stepsList.length - 1;
+
+        // 1. Create step card
+        editor.createShape({
+          id: stepCardId,
+          type: 'math-block' as any,
+          x: nextX,
+          y: nextY,
+          props: {
+            w: stepWidth,
+            h: stepHeight,
+            title: `Шаг ${idx + 1}: ${activeMethod.name}`,
+            latex: '',
+            resultLatex: isLast ? resultLatex : '',
+            comment: stepText,
+            color: isLast ? '#10b981' : '#6366f1',
+            isEditing: false,
+            error: '',
+          },
+        });
+
+        // 2. Create bound straight arrow
+        try {
+          const arrowId = createShapeId();
+          editor.createShape({
+            id: arrowId,
+            type: 'arrow',
+            x: prevX + prevW,
+            y: prevY + prevH / 2,
+            props: {
+              start: { x: 0, y: 0 },
+              end: { x: spacingX, y: 0 },
+              bend: 0, // Starts straight!
+              color: isLast ? 'green' : 'violet',
+              arrowheadEnd: 'arrow',
+            },
+          });
+
+          // Bind to previous card
+          editor.createBinding({
+            type: 'arrow',
+            fromId: arrowId,
+            toId: prevId,
+            props: {
+              terminal: 'start',
+              normalizedAnchor: { x: 1, y: 0.5 },
+              isPrecise: true,
+              isExact: false,
+            },
+          });
+
+          // Bind to this step card
+          editor.createBinding({
+            type: 'arrow',
+            fromId: arrowId,
+            toId: stepCardId,
+            props: {
+              terminal: 'end',
+              normalizedAnchor: { x: 0, y: 0.5 },
+              isPrecise: true,
+              isExact: false,
+            },
+          });
+        } catch (e) {
+          console.warn('Could not create step arrow', e);
+        }
+
+        prevId = stepCardId;
+        prevX = nextX;
+        prevY = nextY;
+        prevW = stepWidth;
+        prevH = stepHeight;
+      });
+      return;
+    }
+
+    // Fallback: single child card if no multi-step breakdown
     const newBlockId = createShapeId();
     const newX = shape.x + w + 120;
     const newY = shape.y;
 
-    const hasMethods = solutionMethods.length > 0;
-    const childTitle = hasMethods ? `Ход решения: ${title}` : `Шаг из ${title}`;
-
-    // 1. Create child card
     editor.createShape({
       id: newBlockId,
       type: 'math-block' as any,
       x: newX,
       y: newY,
       props: {
-        w: 460,
-        h: hasMethods ? 430 : 340,
-        title: childTitle,
+        w: 440,
+        h: 340,
+        title: `Шаг из ${title}`,
         latex: resultLatex,
         resultLatex: '',
         comment: `Выведено из: ${latex}`,
         color: '#10b981',
         isEditing: false,
         error: '',
-        methodsJson: hasMethods ? JSON.stringify(solutionMethods) : undefined,
       },
     });
 
-    // 2. Create bound arrow starting straight (bend: 0)
     try {
       const arrowId = createShapeId();
       editor.createShape({
@@ -260,13 +357,12 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
         props: {
           start: { x: 0, y: 0 },
           end: { x: 120, y: 0 },
-          bend: 0, // Starts straight!
+          bend: 0,
           color: 'green',
           arrowheadEnd: 'arrow',
         },
       });
 
-      // Bind arrow to parent
       editor.createBinding({
         type: 'arrow',
         fromId: arrowId,
@@ -279,7 +375,6 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
         },
       });
 
-      // Bind arrow to child
       editor.createBinding({
         type: 'arrow',
         fromId: arrowId,
@@ -315,7 +410,11 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
         kb.hide();
       }
     } catch {}
-    editor.deleteShapes([shape.id]);
+
+    // Find all bound arrows connected to this card and kill them together!
+    const bindings = editor.getBindingsInvolvingShape(shape.id, 'arrow');
+    const arrowIdsToKill = bindings.map((b) => b.fromId);
+    editor.deleteShapes([shape.id, ...arrowIdsToKill]);
   };
 
   return (
@@ -369,7 +468,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
           <button
             onClick={handleDelete}
             className="p-1 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-lg transition cursor-pointer"
-            title="Удалить карточку"
+            title="Удалить карточку и привязанные стрелки"
           >
             <Trash2 size={14} />
           </button>
@@ -392,7 +491,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
           <div
             onClick={() => updateProps({ isEditing: true })}
             onPointerDown={(e) => e.stopPropagation()}
-            className="flex-1 min-h-[64px] flex items-center justify-center p-3 rounded-xl bg-slate-50/80 border border-dashed border-slate-200 cursor-pointer hover:bg-blue-50/40 hover:border-blue-300 transition"
+            className="flex-1 min-h-[56px] flex items-center justify-center p-3 rounded-xl bg-slate-50/80 border border-dashed border-slate-200 cursor-pointer hover:bg-blue-50/40 hover:border-blue-300 transition"
             title="Нажмите для редактирования формулы"
           >
             <MathRenderer latex={latex} fontSize="1.35rem" />
@@ -447,7 +546,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
               <button
                 onClick={handleBranchOut}
                 className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-sm cursor-pointer"
-                title="Создать связанную ветку с подробным ходом решения"
+                title="Разветвить решение: каждый шаг появится отдельной карточкой со стрелками"
               >
                 <span>{solutionMethods.length > 0 ? 'Ветвить ход решения' : 'Ветвить'}</span>
                 <ArrowRight size={12} />
@@ -460,7 +559,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
           </div>
         )}
 
-        {/* PhotoMath-style Step Breakdown Display on Branched Child Card */}
+        {/* Step Breakdown Display on Branched Child Card */}
         {branchedMethods.length > 0 && (
           <div
             onPointerDown={(e) => e.stopPropagation()}
@@ -497,11 +596,21 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
                     key={i}
                     className="p-2.5 rounded-xl bg-white/95 border border-emerald-100/90 text-xs text-slate-800 shadow-2xs leading-relaxed"
                   >
-                    {st}
+                    <FormattedStepText text={st} />
                   </div>
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Formatted Step Explanation if this card represents a single step */}
+        {comment && (
+          <div
+            onPointerDown={(e) => e.stopPropagation()}
+            className="p-2.5 rounded-xl bg-slate-50/90 border border-slate-200/80 text-xs text-slate-800 leading-relaxed shadow-2xs"
+          >
+            <FormattedStepText text={comment} />
           </div>
         )}
 
@@ -545,11 +654,11 @@ export class MathBlockShapeUtil extends BaseBoxShapeUtil<any> {
       w: 440,
       h: 360,
       title: 'Выражение',
-      latex: '', // Empty by default!
+      latex: '', // Empty by default! No templates!
       resultLatex: '',
       comment: '',
       color: '#3b82f6',
-      isEditing: true, // Active and ready to type immediately!
+      isEditing: true, // Focus immediately ready for typing!
       error: '',
     };
   }

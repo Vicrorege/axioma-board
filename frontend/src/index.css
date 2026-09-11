@@ -14,7 +14,18 @@ body,
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-/* Ensure Tldraw style panel sits neatly below our TopBar */
+/* Miro-style soft, gentle dot grid (calm on the eyes, slightly larger radius) */
+.tl-grid {
+  opacity: 0.22 !important;
+}
+
+.tl-grid-dot {
+  fill: #64748b !important;
+  transform: scale(1.6) !important;
+  transform-origin: center !important;
+}
+
+/* Ensure Tldraw style panel emerges with clean animation */
 .tlui-layout__top__right {
   top: 68px !important;
   right: 16px !important;
@@ -25,6 +36,27 @@ body,
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
   border: 1px solid rgba(226, 232, 240, 0.8) !important;
   border-radius: 1rem !important;
+  animation: toolPopOut 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+@keyframes toolPopOut {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Hide MathLive internal virtual keyboard toggle so there is STRICTLY ONE keyboard button */
+math-field::part(virtual-keyboard-toggle) {
+  display: none !important;
+}
+
+.ML__virtual-keyboard-toggle {
+  display: none !important;
 }
 
 /* MathLive Virtual Keyboard styling & layer */

@@ -160,6 +160,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isStylesOpen, setIsStylesOpen] = useState(false);
+  const [arrowFlyout, setArrowFlyout] = useState<{ left: number } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(true);
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false);
@@ -426,6 +427,28 @@ export default function App() {
               });
             }
           }
+
+          // Cascade kill arrows connected to any deleted card!
+          if (entry.changes.removed) {
+            const removedKeys = Object.keys(entry.changes.removed);
+            const removedCardIds = removedKeys
+              .filter((k) => k.startsWith('shape:'))
+              .map((k) => k.replace('shape:', ''));
+
+            if (removedCardIds.length > 0) {
+              const allArrows = ed.getCurrentPageShapes().filter((s) => s.type === 'arrow') as any[];
+              const arrowsToKill: any[] = [];
+              allArrows.forEach((arrow) => {
+                const bindings = ed.getBindingsFromShape(arrow.id, 'arrow');
+                if (bindings.some((b) => removedCardIds.includes(b.toId.replace('shape:', '')))) {
+                  arrowsToKill.push(arrow.id);
+                }
+              });
+              if (arrowsToKill.length > 0) {
+                ed.deleteShapes(arrowsToKill);
+              }
+            }
+          }
         }
       });
     },
@@ -530,36 +553,30 @@ export default function App() {
       StylePanel: (props) => (isStylesOpen ? <DefaultStylePanel {...props} /> : null),
       Toolbar: (props) => (
         <div
-          onDoubleClick={(e) => {
-            const target = e.target as HTMLElement;
-            const btn = target.closest('button');
-            if (!btn) return;
+          className="relative"
+          onClickCapture={(e) => {
+            const btn = (e.target as HTMLElement).closest('button');
+            if (!btn || !editorRef.current) return;
             const testId = (btn.getAttribute('data-testid') || '').toLowerCase();
             const title = (btn.getAttribute('title') || '').toLowerCase();
             const isArrow = testId.includes('arrow') || title.includes('arrow') || title.includes('стрелк');
-            if (isArrow) {
-              // Double-click on arrow tool in toolbar: activates curved arrow mode
-              if (editorRef.current) {
-                editorRef.current.setCurrentTool('arrow');
-                const center = editorRef.current.getViewportPageBounds().center;
-                const arrowId = createShapeId();
-                editorRef.current.createShape({
-                  id: arrowId,
-                  type: 'arrow',
-                  x: center.x - 70,
-                  y: center.y - 35,
-                  props: {
-                    start: { x: 0, y: 0 },
-                    end: { x: 140, y: 70 },
-                    bend: 32, // Curved arc!
-                    color: 'blue',
-                  },
-                });
-                editorRef.current.select(arrowId);
+
+            const currentTool = editorRef.current.getCurrentToolId();
+            const isAlreadyActive =
+              (isArrow && currentTool === 'arrow') ||
+              (testId.includes(currentTool) && currentTool !== 'select');
+
+            if (isAlreadyActive) {
+              if (isArrow) {
+                // Secondary click on Arrow tool: toggle curved arrow popup
+                const rect = btn.getBoundingClientRect();
+                setArrowFlyout((prev) => (prev ? null : { left: rect.left + rect.width / 2 }));
+              } else {
+                // Secondary click on other tool: toggle style panel!
+                setIsStylesOpen((prev) => !prev);
               }
             } else {
-              // Double-click on any other tool: toggle styles panel!
-              setIsStylesOpen((prev) => !prev);
+              setArrowFlyout(null);
             }
           }}
         >
@@ -611,6 +628,54 @@ export default function App() {
           />
         </CanvasErrorBoundary>
       </div>
+
+      {/* Curved Arrow Sub-Tool Flyout (emerges from Arrow tool on secondary click) */}
+      {arrowFlyout && (
+        <div
+          style={{ left: arrowFlyout.left, transform: 'translateX(-50%)' }}
+          className="fixed bottom-18 z-50 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-200/90 p-1.5 flex items-center gap-1.5 animate-toolPopOut pointer-events-auto"
+        >
+          <button
+            onClick={() => {
+              if (editorRef.current) {
+                editorRef.current.setCurrentTool('arrow');
+              }
+              setArrowFlyout(null);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+          >
+            <span className="text-sm">➔</span>
+            <span>Прямая</span>
+          </button>
+          <button
+            onClick={() => {
+              if (editorRef.current) {
+                editorRef.current.setCurrentTool('arrow');
+                const center = editorRef.current.getViewportPageBounds().center;
+                const arrowId = createShapeId();
+                editorRef.current.createShape({
+                  id: arrowId,
+                  type: 'arrow',
+                  x: center.x - 70,
+                  y: center.y - 35,
+                  props: {
+                    start: { x: 0, y: 0 },
+                    end: { x: 140, y: 70 },
+                    bend: 32, // Curved arc!
+                    color: 'blue',
+                  },
+                });
+                editorRef.current.select(arrowId);
+              }
+              setArrowFlyout(null);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl transition cursor-pointer shadow-2xs"
+          >
+            <span className="text-sm font-bold">⤹</span>
+            <span>Кривая</span>
+          </button>
+        </div>
+      )}
 
       {/* AI Agent Drawer */}
       {board && (

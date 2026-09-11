@@ -25,6 +25,17 @@ interface VisualMathEditorProps {
   autoFocus?: boolean;
 }
 
+const ESSENTIAL_MATH_TOOLS = [
+  { label: '½', latex: '\\frac{#@}{#?}', title: 'Обыкновенная дробь' },
+  { label: 'xⁿ', latex: '^{#?}', title: 'Степень' },
+  { label: 'x²', latex: '^2', title: 'Квадрат' },
+  { label: '√x', latex: '\\sqrt{#?}', title: 'Квадратный корень' },
+  { label: '( )', latex: '\\left(#?\\right)', title: 'Скобки' },
+  { label: '≤', latex: '\\le ', title: 'Меньше либо равно' },
+  { label: '≥', latex: '\\ge ', title: 'Больше либо равно' },
+  { label: 'π', latex: '\\pi', title: 'Число Пи' },
+];
+
 export const VisualMathEditor: React.FC<VisualMathEditorProps> = ({
   value,
   onChange,
@@ -109,6 +120,13 @@ export const VisualMathEditor: React.FC<VisualMathEditorProps> = ({
     }
   }, [value]);
 
+  const insertTemplate = (templateLatex: string) => {
+    const mf = mfRef.current;
+    if (!mf) return;
+    mf.executeCommand(['insert', templateLatex]);
+    mf.focus();
+  };
+
   const toggleVirtualKeyboard = () => {
     try {
       const kb = (window as any).mathVirtualKeyboard;
@@ -124,6 +142,34 @@ export const VisualMathEditor: React.FC<VisualMathEditorProps> = ({
       onPointerDown={(e) => e.stopPropagation()}
       className="flex flex-col gap-2 w-full select-text"
     >
+      {/* Sleek Convenient Quick Math Toolbar */}
+      <div className="flex items-center justify-between gap-1 p-1 bg-slate-50/90 rounded-xl border border-slate-200/80">
+        <div className="flex items-center gap-1 overflow-x-auto">
+          {ESSENTIAL_MATH_TOOLS.map((tool) => (
+            <button
+              key={tool.label}
+              type="button"
+              onClick={() => insertTemplate(tool.latex)}
+              title={tool.title}
+              className="px-2 py-0.5 text-xs font-semibold bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 text-slate-700 rounded-lg border border-slate-200/80 shadow-2xs transition cursor-pointer"
+            >
+              {tool.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Sole Single Keyboard Toggle Button */}
+        <button
+          type="button"
+          onClick={toggleVirtualKeyboard}
+          title="Экранная клавиатура"
+          className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-white hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 rounded-lg border border-slate-200/80 cursor-pointer shadow-2xs transition shrink-0 ml-1"
+        >
+          <Keyboard size={12} />
+          <span>Клавиатура</span>
+        </button>
+      </div>
+
       {/* Interactive WYSIWYG Math Field */}
       <div className="relative border-2 border-blue-500 rounded-xl bg-white p-2.5 shadow-sm transition-all focus-within:ring-2 focus-within:ring-blue-400/30">
         <math-field
@@ -147,16 +193,6 @@ export const VisualMathEditor: React.FC<VisualMathEditorProps> = ({
             <span>•</span>
             <span>Enter — готово</span>
           </div>
-
-          <button
-            type="button"
-            onClick={toggleVirtualKeyboard}
-            title="Экранная клавиатура"
-            className="flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 rounded-md border border-slate-200 cursor-pointer shadow-2xs transition"
-          >
-            <Keyboard size={12} />
-            <span>Клавиатура</span>
-          </button>
         </div>
       </div>
     </div>

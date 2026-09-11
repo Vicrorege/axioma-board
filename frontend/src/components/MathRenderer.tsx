@@ -39,3 +39,58 @@ export const MathRenderer: React.FC<MathRendererProps> = ({
     />
   );
 };
+
+export const FormattedStepText: React.FC<{ text: string; className?: string }> = ({
+  text,
+  className = '',
+}) => {
+  const elements = useMemo(() => {
+    if (!text) return null;
+
+    // Matches $$...$$ (block) or $...$ (inline)
+    const regex = /(\$\$[\s\S]*?\$\$|\$[^\$]+?\$)/g;
+    const parts = text.split(regex);
+
+    return parts.map((part, index) => {
+      if (part.startsWith('$$') && part.endsWith('$$')) {
+        const math = part.slice(2, -2).trim();
+        try {
+          const html = katex.renderToString(math, {
+            displayMode: true,
+            throwOnError: false,
+          });
+          return (
+            <span
+              key={index}
+              className="my-1.5 block overflow-x-auto text-emerald-950 font-medium"
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+          );
+        } catch {
+          return <span key={index}>{part}</span>;
+        }
+      } else if (part.startsWith('$') && part.endsWith('$')) {
+        const math = part.slice(1, -1).trim();
+        try {
+          const html = katex.renderToString(math, {
+            displayMode: false,
+            throwOnError: false,
+          });
+          return (
+            <span
+              key={index}
+              className="inline-block px-1 align-baseline text-emerald-950 font-semibold"
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+          );
+        } catch {
+          return <span key={index}>{part}</span>;
+        }
+      } else {
+        return <span key={index}>{part}</span>;
+      }
+    });
+  }, [text]);
+
+  return <div className={`leading-relaxed text-xs text-slate-800 break-words ${className}`}>{elements}</div>;
+};
