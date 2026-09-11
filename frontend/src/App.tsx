@@ -5,6 +5,7 @@ import 'tldraw/tldraw.css';
 import 'katex/dist/katex.min.css';
 
 import { MathBlockShapeUtil } from './shapes/MathBlockShapeUtil';
+import { InfoCardShapeUtil, INFO_CARD_TYPE } from './shapes/InfoCardShapeUtil';
 import { TopBar } from './components/TopBar';
 import { DevPlaceholder } from './components/DevPlaceholder';
 import { AuthModal } from './components/AuthModal';
@@ -13,7 +14,7 @@ import { boardsApi, authApi } from './services/api';
 import type { Board, MathBlockData, ArrowConnection } from './types/math';
 import type { User } from './types/auth';
 
-const customShapeUtils = [MathBlockShapeUtil];
+const customShapeUtils = [MathBlockShapeUtil, InfoCardShapeUtil];
 
 const customAssetStore: TLAssetStore = {
   async upload(_asset, file) {
@@ -411,6 +412,42 @@ export default function App() {
       if (boardRef.current) {
         syncBoardToCanvas(boardRef.current, ed);
       }
+
+      // Expose developer console test helper for spawning custom service info-cards
+      (window as any).spawnInfoCard = (options: {
+        title?: string;
+        content?: string;
+        latex?: string;
+        badge?: string;
+        variant?: 'info' | 'warning' | 'success' | 'danger' | 'neutral';
+        color?: string;
+        x?: number;
+        y?: number;
+        w?: number;
+        h?: number;
+      } = {}) => {
+        const center = ed.getViewportPageBounds().center;
+        const id = createShapeId();
+        ed.createShape({
+          id,
+          type: INFO_CARD_TYPE as any,
+          x: options.x ?? center.x - 180,
+          y: options.y ?? center.y - 70,
+          props: {
+            w: options.w ?? 380,
+            h: options.h ?? 140,
+            title: options.title ?? 'Служебное уведомление',
+            content: options.content ?? 'Кастомное сервисное содержание без кнопок решений и вычислений.',
+            latex: options.latex ?? '',
+            badge: options.badge ?? 'SERVICE',
+            variant: options.variant ?? 'info',
+            color: options.color ?? '#3b82f6',
+          },
+        });
+        ed.select(id);
+        console.log(`%c[Axioma] Spawned InfoCard (${id})`, 'color: #3b82f6; font-weight: bold;');
+        return id;
+      };
 
       // Auto-save debounce on any shape, binding, or asset edits
       ed.store.listen((entry: any) => {
