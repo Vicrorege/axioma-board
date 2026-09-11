@@ -104,6 +104,11 @@ export const mathApi = {
     const res = await axios.post(`${API_BASE}/math/ast?latex=${encodeURIComponent(latex)}`);
     return res.data;
   },
+
+  reportSolution: async (latex: string, operation = 'solve', reason = 'Пользователь отправил решение на пересмотр'): Promise<{ success: boolean; message: string }> => {
+    const res = await axios.post(`${API_BASE}/math/report`, { latex, operation, reason });
+    return res.data;
+  },
 };
 
 export const boardsApi = {

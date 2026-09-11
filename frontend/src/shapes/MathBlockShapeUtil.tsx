@@ -185,6 +185,8 @@ function estimateCardHeight(latexStr: string, commentStr: string): number {
 const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
   const { w, h, title, latex, resultLatex, comment, color, isEditing, error, methodsJson } = shape.props;
   const [loadingOp, setLoadingOp] = useState<string | null>(null);
+  const [isReporting, setIsReporting] = useState(false);
+  const [reportSuccess, setReportSuccess] = useState(false);
 
   // Instant 0ms synchronous heuristic actions
   const instantActions = useMemo(() => getInitialActions(latex), [latex]);
@@ -307,7 +309,10 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
     return () => clearTimeout(timer);
   }, [latex, hasExpression]);
 
-  const updateProps = (newProps: Partial<MathBlockShape['props']>) => {
+  const updateProps = (newProps: Partial<MathBlockShape['props']>, markUndo = false) => {
+    if (markUndo) {
+      editor.markHistoryStoppingPoint();
+    }
     editor.updateShape({
       id: shape.id,
       type: 'math-block',
@@ -317,6 +322,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
 
   const handleOp = async (op: string) => {
     setLoadingOp(op);
+    setReportSuccess(false);
     updateProps({ error: '' });
     setSolutionMethods([]);
     setActiveMethodIndex(0);
@@ -342,10 +348,14 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
       }
 
       if (res && res.success) {
-        updateProps({
-          resultLatex: res.result_latex || res.result_str || '',
-          error: '',
-        });
+        // Mark history checkpoint so Ctrl+Z can roll back computation insertion!
+        updateProps(
+          {
+            resultLatex: res.result_latex || res.result_str || '',
+            error: '',
+          },
+          true
+        );
 
         if (res.methods && res.methods.length > 0) {
           setSolutionMethods(res.methods);
@@ -366,9 +376,28 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
     }
   };
 
+  const handleReportSolution = async () => {
+    if (!latex || isReporting) return;
+    setIsReporting(true);
+    try {
+      await mathApi.reportSolution(latex, 'solve', 'Пользователь отправил решение на пересмотр');
+      setReportSuccess(true);
+      // Automatically trigger a fresh re-solve without cache
+      setTimeout(() => {
+        handleOp('solve');
+      }, 700);
+    } catch (e) {
+      console.warn('Could not report solution', e);
+    } finally {
+      setIsReporting(false);
+    }
+  };
+
   // Branch out: wrapped multi-column layout of step cards linked by arrows
   const handleBranchOut = () => {
     if (!resultLatex) return;
+
+    editor.markHistoryStoppingPoint();
 
     const activeMethod = solutionMethods[activeMethodIndex] || solutionMethods[0];
     const stepsList = activeMethod?.steps || [];
@@ -633,13 +662,13 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
       }}
       onWheel={handleCardWheel}
       onWheelCapture={handleCardWheel}
-      className="w-full h-full bg-white rounded-2xl shadow-lg border border-slate-200/90 overflow-hidden font-sans select-none text-slate-800 transition-shadow hover:shadow-xl cursor-default"
+      className="w-full h-full bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-slate-200/90 dark:border-slate-800 overflow-hidden font-sans select-none text-slate-800 dark:text-slate-100 transition-shadow hover:shadow-xl cursor-default"
       style={{ borderTop: `6px solid ${color}` }}
     >
       <div ref={innerContentRef} className="w-full flex flex-col">
         {/* Draggable Card Header */}
       <div
-        className="flex items-center justify-between px-3 py-2 bg-slate-50/90 border-b border-slate-100 cursor-grab active:cursor-grabbing text-slate-500 hover:text-slate-800 transition"
+        className="flex items-center justify-between px-3 py-2 bg-slate-50/90 dark:bg-slate-800/80 border-b border-slate-100 dark:border-slate-800 cursor-grab active:cursor-grabbing text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition"
         title="Потяните за шапку, чтобы переместить карточку"
       >
         <div className="flex items-center gap-1.5 flex-1 min-w-0 pr-2">
@@ -654,19 +683,33 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
               }
             }}
             onChange={(e) => updateProps({ title: e.target.value })}
-            className="text-xs font-bold text-slate-700 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 w-full truncate cursor-text"
+            className="text-xs font-bold text-slate-700 dark:text-slate-200 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 w-full truncate cursor-text"
             placeholder="Название карточки"
           />
         </div>
 
         {/* Header Action Icons */}
         <div className="flex items-center gap-1 shrink-0" onPointerDown={(e) => e.stopPropagation()}>
+          {resultLatex && (
+            <button
+              onClick={handleReportSolution}
+              disabled={isReporting}
+              className={`p-1 px-1.5 rounded-lg text-xs transition cursor-pointer flex items-center gap-1 ${
+                reportSuccess
+                  ? 'bg-emerald-100 text-emerald-700 font-semibold'
+                  : 'text-slate-400 hover:text-red-600 hover:bg-red-50'
+              }`}
+              title="Пожаловаться на решение (сбросить из памяти и пересчитать заново)"
+            >
+              <span>{reportSuccess ? '✓' : '🚩'}</span>
+            </button>
+          )}
           <button
             onClick={handleToggleEditing}
             className={`p-1 px-2 rounded-lg text-xs font-semibold flex items-center gap-1 transition cursor-pointer ${
               isEditing
                 ? 'bg-blue-600 text-white shadow-2xs'
-                : 'text-slate-500 hover:bg-slate-200 hover:text-slate-800'
+                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-800 dark:hover:text-slate-100'
             }`}
             title={isEditing ? 'Сохранить и закрыть' : 'Редактировать формулу'}
           >
@@ -675,7 +718,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
           </button>
           <button
             onClick={handleDelete}
-            className="p-1 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-lg transition cursor-pointer"
+            className="p-1 hover:bg-red-50 dark:hover:bg-red-950/40 text-slate-400 hover:text-red-600 rounded-lg transition cursor-pointer"
             title="Удалить карточку и привязанные стрелки"
           >
             <Trash2 size={14} />
@@ -702,7 +745,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
           <div
             onClick={() => updateProps({ isEditing: true })}
             onPointerDown={(e) => e.stopPropagation()}
-            className="flex-1 min-h-[56px] flex items-center justify-center p-3 rounded-xl bg-slate-50/80 border border-dashed border-slate-200 cursor-pointer hover:bg-blue-50/40 hover:border-blue-300 transition"
+            className="flex-1 min-h-[56px] flex items-center justify-center p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/60 border border-dashed border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-blue-50/40 dark:hover:bg-blue-950/30 hover:border-blue-300 dark:hover:border-blue-500 transition"
             title="Нажмите для редактирования формулы"
           >
             <MathRenderer latex={latex} fontSize="1.35rem" />
@@ -720,7 +763,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
                 key={act.id || act.label}
                 disabled={loadingOp !== null}
                 onClick={() => handleOp(act.operation)}
-                className="px-3 py-1.5 text-xs font-medium rounded-xl border border-slate-200 bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 text-slate-700 shadow-2xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                className="px-3 py-1.5 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-slate-700 hover:text-blue-700 dark:hover:text-blue-300 hover:border-blue-300 dark:hover:border-blue-500 text-slate-700 dark:text-slate-200 shadow-2xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                 title={act.tooltip || act.label}
               >
                 {loadingOp === act.operation ? (
@@ -750,10 +793,25 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
         {resultLatex && (
           <div
             onPointerDown={(e) => e.stopPropagation()}
-            className="mt-1 p-3 rounded-2xl bg-emerald-50/90 border border-emerald-200 flex flex-col gap-2"
+            className="mt-1 p-3 rounded-2xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 flex flex-col gap-2"
           >
-            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-emerald-800">
-              <span>Результат</span>
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+              <div className="flex items-center gap-2">
+                <span>Результат</span>
+                <button
+                  type="button"
+                  disabled={isReporting}
+                  onClick={handleReportSolution}
+                  className={`px-1.5 py-0.5 rounded text-[10px] lowercase transition cursor-pointer flex items-center gap-1 ${
+                    reportSuccess
+                      ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-100/90 dark:bg-emerald-900/50 font-semibold'
+                      : 'text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30'
+                  }`}
+                  title="Пожаловаться на решение — результат будет сброшен из памяти и пересчитан заново"
+                >
+                  <span>{reportSuccess ? '✓ на пересмотре' : isReporting ? 'отправка...' : '🚩 пожаловаться'}</span>
+                </button>
+              </div>
               <button
                 onClick={handleBranchOut}
                 className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-sm cursor-pointer"
@@ -764,7 +822,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
               </button>
             </div>
 
-            <div className="overflow-x-auto text-emerald-950 py-1 font-medium">
+            <div className="overflow-x-auto text-emerald-950 dark:text-emerald-100 py-1 font-medium">
               <MathRenderer latex={resultLatex} fontSize="1.25rem" />
             </div>
           </div>
@@ -824,17 +882,17 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
           return (
             <div
               onPointerDown={(e) => e.stopPropagation()}
-              className="p-2.5 rounded-xl bg-slate-50/90 border border-slate-200/80 text-xs text-slate-800 leading-relaxed shadow-2xs space-y-2"
+              className="p-2.5 rounded-xl bg-slate-50/90 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-100 leading-relaxed shadow-2xs space-y-2"
             >
               <FormattedStepText text={mainSummary} />
 
               {subSteps.length > 0 && (
-                <div className="pt-2 border-t border-slate-200/80">
+                <div className="pt-2 border-t border-slate-200/80 dark:border-slate-700">
                   <div className="flex items-center justify-between">
                     <button
                       type="button"
                       onClick={() => setShowDetails((prev) => !prev)}
-                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
+                      className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex items-center gap-1 cursor-pointer"
                     >
                       <span>{showDetails ? '▲ Свернуть подробности' : `▼ Подробнее (${subSteps.length} мелких шага)`}</span>
                     </button>
@@ -843,7 +901,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
                   {showDetails && (
                     <div className="mt-2 space-y-1.5 pl-2 border-l-2 border-blue-400">
                       {subSteps.map((st, i) => (
-                        <div key={i} className="p-1.5 rounded-lg bg-white border border-slate-200/70 shadow-2xs">
+                        <div key={i} className="p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 shadow-2xs">
                           <FormattedStepText text={st} />
                         </div>
                       ))}
@@ -868,7 +926,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
             }}
             onChange={(e) => updateProps({ comment: e.target.value })}
             placeholder="Пояснение шага или комментарий..."
-            className="mt-auto text-xs text-slate-500 bg-transparent border-t border-slate-100 pt-1.5 focus:outline-none focus:text-slate-800 cursor-text"
+            className="mt-auto text-xs text-slate-500 dark:text-slate-400 bg-transparent border-t border-slate-100 dark:border-slate-800 pt-1.5 focus:outline-none focus:text-slate-800 dark:focus:text-slate-200 cursor-text"
           />
         )}
       </div>

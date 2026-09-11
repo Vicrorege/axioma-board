@@ -162,11 +162,42 @@ export default function App() {
   const [arrowFlyout, setArrowFlyout] = useState<{ left: number } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('axioma_dark_mode');
+      if (saved !== null) return saved === 'true';
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    } catch {
+      return false;
+    }
+  });
   const [isDevUnlocked, setIsDevUnlocked] = useState<boolean>(checkIsUnlocked);
   const autoSaveTimerRef = useRef<any>(null);
 
   boardRef.current = board;
   editorRef.current = editor;
+
+  // Synchronize dark mode with document element and editor user preferences
+  useEffect(() => {
+    try {
+      localStorage.setItem('axioma_dark_mode', String(isDarkMode));
+      if (isDarkMode) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    } catch {}
+
+    if (editorRef.current) {
+      editorRef.current.user.updateUserPreferences({
+        colorScheme: isDarkMode ? 'dark' : 'light',
+      });
+    }
+  }, [isDarkMode]);
+
+  const toggleDarkMode = () => {
+    setIsDarkMode((prev) => !prev);
+  };
 
   const handleLock = () => {
     clearTokenStorage();
@@ -192,6 +223,9 @@ export default function App() {
         try {
           loadSnapshot(targetEditor.store, currentBoard.snapshot.canvas_state);
           targetEditor.updateInstanceState({ isGridMode: true });
+    targetEditor.user.updateUserPreferences({
+      colorScheme: isDarkMode ? 'dark' : 'light',
+    });
           targetEditor.clearHistory();
           return;
         } catch (err) {
@@ -587,7 +621,7 @@ export default function App() {
   }
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-slate-100 font-sans">
+    <div className="relative w-screen h-screen overflow-hidden bg-slate-100 dark:bg-slate-950 font-sans transition-colors">
       {/* Top Header Control Bar */}
       <TopBar
         editor={editor}
@@ -605,6 +639,8 @@ export default function App() {
         currentUser={currentUser}
         onOpenAuth={() => setIsAuthOpen(true)}
         onLogout={handleLogout}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={toggleDarkMode}
       />
 
       {/* Tldraw Canvas wrapped in Error Boundary */}

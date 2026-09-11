@@ -24,6 +24,24 @@ body,
   r: 1.5px !important;
 }
 
+/* Dark theme overrides */
+.dark body,
+.dark #root {
+  background-color: #0f172a;
+}
+
+.dark .tl-grid-dot {
+  fill: #475569 !important;
+}
+
+.dark .tlui-menu,
+.dark .tlui-toolbar,
+.dark .tlui-popover__content {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
+  border-color: #334155 !important;
+}
+
 /* Style Panel emerging directly from bottom toolbar */
 .tlui-style-panel {
   background: transparent !important;
