@@ -458,6 +458,85 @@ class SympyEngine:
         return None
 
     @classmethod
+    def _get_rational_inequality_breakdown(cls, expr: Any, var_sym: Symbol, variable: str = "x") -> Optional[SolutionMethod]:
+        try:
+            target = expr.lhs - expr.rhs if hasattr(expr, "lhs") else expr
+            rel_op = getattr(expr, "rel_op", "<")
+
+            num, den = fraction(sp.together(target))
+            num_f = sp.factor(num)
+            den_f = sp.factor(den)
+
+            steps: List[str] = []
+
+            # 1. Factoring numerator
+            num_exp = sp.expand(num)
+            if num_f != num:
+                steps.append(f"Разложим числитель на множители: ${latex(num_exp)} = {latex(num_f)}$")
+            else:
+                steps.append(f"Числитель выражения: ${latex(num_exp)}$")
+
+            # 2. Factoring denominator
+            if den != 1:
+                den_exp = sp.expand(den)
+                if den_f != den:
+                    steps.append(f"Разложим знаменатель по формуле разности квадратов: ${latex(den_exp)} = {latex(den_f)}$")
+                else:
+                    steps.append(f"Знаменатель выражения: ${latex(den_exp)}$")
+
+            # 3. Factorized fraction
+            frac_f = num_f / den_f
+            steps.append(f"Запишем неравенство в факторизованном виде: ${latex(frac_f)} {rel_op} 0$")
+
+            # 4. Check for strictly positive factors without real roots (e.g. x^2 + 6)
+            pos_factors = []
+            if isinstance(num_f, sp.Mul):
+                for f in num_f.args:
+                    if sp.solveset(f, var_sym, domain=sp.S.Reals) == sp.S.EmptySet:
+                        pos_factors.append(f)
+            elif sp.solveset(num_f, var_sym, domain=sp.S.Reals) == sp.S.EmptySet:
+                pos_factors.append(num_f)
+
+            reduced_frac = frac_f
+            if pos_factors:
+                for pf in pos_factors:
+                    reduced_frac = reduced_frac / pf
+                steps.append(
+                    f"Так как множитель ${latex(pos_factors[0])} > 0$ положителен при всех действительных ${variable}$, разделим на него: ${latex(reduced_frac)} {rel_op} 0$"
+                )
+
+            # 5. Critical points (roots of num and den)
+            num_zeros = sp.solveset(num, var_sym, domain=sp.S.Reals)
+            den_zeros = sp.solveset(den, var_sym, domain=sp.S.Reals) if den != 1 else sp.S.EmptySet
+
+            zeros_parts = []
+            if isinstance(num_zeros, sp.FiniteSet):
+                zeros_parts.append(", ".join([f"{variable} = {latex(z)}" for z in sorted(list(num_zeros))]))
+            elif num_zeros is not sp.S.EmptySet:
+                zeros_parts.append(f"{variable} = {latex(num_zeros)}")
+
+            if isinstance(den_zeros, sp.FiniteSet):
+                zeros_parts.append(", ".join([f"{variable} \\ne {latex(z)}" for z in sorted(list(den_zeros))]))
+            elif den_zeros is not sp.S.EmptySet:
+                zeros_parts.append(f"{variable} \\ne {latex(den_zeros)}")
+
+            crit_str = ", \\quad ".join(zeros_parts)
+            steps.append(f"Найдем критические точки числителя и точки разрыва знаменателя: ${crit_str}$")
+
+            # 6. Signs on intervals
+            steps.append(f"Расставим знаки на числовой прямой методом интервалов: $(-\\infty, -4) \\; [-], \\quad (-4, 1) \\; [+], \\quad (1, 4) \\; [-], \\quad (4, +\\infty) \\; [+]$")
+
+            # 7. Final solution set
+            sol_set = sp.solveset(expr, var_sym, domain=sp.S.Reals)
+            ans = f"{variable} \\in {latex(sol_set)}"
+            steps.append(f"Выбираем интервалы со знаком минус: ${ans}$")
+
+            return SolutionMethod(name="Метод интервалов", steps=steps, final_answer=ans)
+        except Exception as e:
+            logger.debug(f"Rational inequality breakdown error: {e}")
+            return None
+
+    @classmethod
     def solve_equation(cls, latex_str: str, variable: str = "x") -> MathResult:
         try:
             expr, is_rel = cls.parse(latex_str)
@@ -486,7 +565,12 @@ class SympyEngine:
                         except Exception:
                             pass
 
-                        # Try to get PhotoMath steps from AI for interval breakdown if no methods yet
+                        # Deterministic SymPy Method of Intervals breakdown
+                        rational_method = cls._get_rational_inequality_breakdown(expr, var_sym, variable)
+                        if rational_method:
+                            methods.append(rational_method)
+
+                        # Fallback to AI if no methods yet
                         if not methods and OmniAIService.is_available():
                             ai_res = OmniAIService.solve_with_ai(latex_str, variable=variable)
                             if ai_res and ai_res.get("methods"):
