@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   BaseBoxShapeUtil,
   HTMLContainer,
@@ -26,6 +26,7 @@ declare module 'tldraw' {
       color: string;
       isEditing: boolean;
       error: string;
+      methodsJson?: string;
     };
   }
 }
@@ -72,21 +73,19 @@ function getInitialActions(rawLatex: string): DynamicAction[] {
   // Check quadratic
   if (s.includes('x^2') || s.includes('x^{2}')) {
     return [
-      { id: 'solve', label: 'Решить уравнение', icon: '⚖️', operation: 'solve', tooltip: 'Найти корни (дискриминант & Виет)' },
+      { id: 'solve', label: 'Решить уравнение', icon: '⚖️', operation: 'solve', tooltip: 'Найти корни уравнения' },
       { id: 'factor', label: 'Разложить на множители', icon: '🧩', operation: 'factor', tooltip: 'Разложить на множители' },
       { id: 'diff', label: 'Производная d/dx', icon: '📈', operation: 'diff', tooltip: 'Дифференцировать' },
       { id: 'simplify', label: 'Упростить', icon: '🪄', operation: 'simplify', tooltip: 'Упростить' },
-      { id: 'ai_steps', label: 'Ход решения', icon: '📝', operation: 'ai_steps', tooltip: 'Пошаговый разбор решения' },
     ];
   }
 
   if (s.includes('=')) {
     return [
       { id: 'solve', label: 'Решить уравнение', icon: '⚖️', operation: 'solve', tooltip: 'Найти корни уравнения' },
-      { id: 'factor', label: 'Разложить', icon: '🧩', operation: 'factor', tooltip: 'Разложить на множители' },
+      { id: 'factor', label: 'Разложить на множители', icon: '🧩', operation: 'factor', tooltip: 'Разложить на множители' },
       { id: 'simplify', label: 'Упростить', icon: '🪄', operation: 'simplify', tooltip: 'Упростить обе части' },
       { id: 'diff', label: 'Производная d/dx', icon: '📈', operation: 'diff', tooltip: 'Дифференцировать' },
-      { id: 'ai_steps', label: 'Ход решения', icon: '📝', operation: 'ai_steps', tooltip: 'Пошаговый разбор решения' },
     ];
   }
 
@@ -117,14 +116,26 @@ function getInitialActions(rawLatex: string): DynamicAction[] {
 }
 
 const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
-  const { w, h, title, latex, resultLatex, comment, color, isEditing, error } = shape.props;
+  const { w, h, title, latex, resultLatex, comment, color, isEditing, error, methodsJson } = shape.props;
   const [loadingOp, setLoadingOp] = useState<string | null>(null);
   const [actions, setActions] = useState<DynamicAction[]>(() => getInitialActions(latex));
-  const [methods, setMethods] = useState<SolutionMethod[]>([]);
+  const [solutionMethods, setSolutionMethods] = useState<SolutionMethod[]>([]);
   const [activeMethodIndex, setActiveMethodIndex] = useState(0);
-  const [showSteps, setShowSteps] = useState(true);
 
   const hasExpression = Boolean(latex && latex.trim().length > 0);
+
+  // Parse branched methods if this card is a step-breakdown child
+  const branchedMethods: SolutionMethod[] = useMemo(() => {
+    if (methodsJson) {
+      try {
+        const parsed = JSON.parse(methodsJson);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }, [methodsJson]);
 
   // Dynamic Context-Aware Action Adaptation
   useEffect(() => {
@@ -133,10 +144,8 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
       return;
     }
 
-    // 1. Instant heuristic update
     setActions(getInitialActions(latex));
 
-    // 2. Debounced deep AI action suggestions from OmniRoute
     const timer = setTimeout(async () => {
       try {
         const res = await mathApi.getSuggestedActions(latex);
@@ -144,7 +153,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
           setActions(res.actions);
         }
       } catch {
-        // Local heuristic fallback remains in place
+        // Heuristic fallback remains in place
       }
     }, 600);
 
@@ -162,7 +171,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
   const handleOp = async (op: string) => {
     setLoadingOp(op);
     updateProps({ error: '' });
-    setMethods([]);
+    setSolutionMethods([]);
     setActiveMethodIndex(0);
 
     try {
@@ -191,15 +200,10 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
           error: '',
         });
 
-        // Parse PhotoMath structured methods or fallback steps
         if (res.methods && res.methods.length > 0) {
-          setMethods(res.methods);
-          setActiveMethodIndex(0);
-          setShowSteps(true);
+          setSolutionMethods(res.methods);
         } else if (res.steps && res.steps.length > 0) {
-          setMethods([{ name: 'Ход решения', steps: res.steps, final_answer: res.result_latex }]);
-          setActiveMethodIndex(0);
-          setShowSteps(true);
+          setSolutionMethods([{ name: 'Ход решения', steps: res.steps, final_answer: res.result_latex }]);
         }
       } else {
         updateProps({
@@ -215,32 +219,37 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
     }
   };
 
+  // Branch out to a child card with step-by-step breakdown & straight-to-curved bound arrow
   const handleBranchOut = () => {
     if (!resultLatex) return;
     const newBlockId = createShapeId();
-    const newX = shape.x + w + 100;
-    const newY = shape.y + 40;
+    const newX = shape.x + w + 120;
+    const newY = shape.y;
 
-    // 1. Create Child Card
+    const hasMethods = solutionMethods.length > 0;
+    const childTitle = hasMethods ? `Ход решения: ${title}` : `Шаг из ${title}`;
+
+    // 1. Create child card
     editor.createShape({
       id: newBlockId,
       type: 'math-block' as any,
       x: newX,
       y: newY,
       props: {
-        w: 440,
-        h: 360,
-        title: `Шаг из ${title}`,
+        w: 460,
+        h: hasMethods ? 430 : 340,
+        title: childTitle,
         latex: resultLatex,
         resultLatex: '',
         comment: `Выведено из: ${latex}`,
         color: '#10b981',
         isEditing: false,
         error: '',
+        methodsJson: hasMethods ? JSON.stringify(solutionMethods) : undefined,
       },
     });
 
-    // 2. Create Curved Arrow with magnetic bindings
+    // 2. Create bound arrow starting straight (bend: 0)
     try {
       const arrowId = createShapeId();
       editor.createShape({
@@ -250,14 +259,14 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
         y: shape.y + h / 2,
         props: {
           start: { x: 0, y: 0 },
-          end: { x: 100, y: 40 },
-          bend: 28, // Elegant curving arc!
+          end: { x: 120, y: 0 },
+          bend: 0, // Starts straight!
           color: 'green',
           arrowheadEnd: 'arrow',
         },
       });
 
-      // Bind to parent card
+      // Bind arrow to parent
       editor.createBinding({
         type: 'arrow',
         fromId: arrowId,
@@ -270,7 +279,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
         },
       });
 
-      // Bind to child card
+      // Bind arrow to child
       editor.createBinding({
         type: 'arrow',
         fromId: arrowId,
@@ -283,7 +292,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
         },
       });
     } catch (e) {
-      console.warn('Could not create bound curved arrow', e);
+      console.warn('Could not create bound arrow', e);
     }
   };
 
@@ -427,7 +436,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
           </div>
         )}
 
-        {/* Computed Result Box with PhotoMath Steps & Branching */}
+        {/* Computed Result Box with Branching */}
         {resultLatex && (
           <div
             onPointerDown={(e) => e.stopPropagation()}
@@ -438,9 +447,9 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
               <button
                 onClick={handleBranchOut}
                 className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-sm cursor-pointer"
-                title="Создать связанную дочернюю карточку с результатом"
+                title="Создать связанную ветку с подробным ходом решения"
               >
-                <span>Ветвить</span>
+                <span>{solutionMethods.length > 0 ? 'Ветвить ход решения' : 'Ветвить'}</span>
                 <ArrowRight size={12} />
               </button>
             </div>
@@ -448,60 +457,51 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
             <div className="overflow-x-auto text-emerald-950 py-1 font-medium">
               <MathRenderer latex={resultLatex} fontSize="1.25rem" />
             </div>
+          </div>
+        )}
 
-            {/* PhotoMath-style Multiple Solution Methods & Steps */}
-            {methods.length > 0 && (
-              <div className="pt-2 border-t border-emerald-200/90 flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1">
-                    {methods.length > 1 ? (
-                      <div className="flex items-center gap-1 bg-emerald-100/70 p-0.5 rounded-lg">
-                        {methods.map((m, idx) => (
-                          <button
-                            key={m.name}
-                            type="button"
-                            onClick={() => setActiveMethodIndex(idx)}
-                            className={`px-2 py-0.5 text-[11px] font-semibold rounded-md transition cursor-pointer ${
-                              activeMethodIndex === idx
-                                ? 'bg-white text-emerald-900 shadow-2xs'
-                                : 'text-emerald-700 hover:text-emerald-900'
-                            }`}
-                          >
-                            {m.name}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">
-                        {methods[0].name}
-                      </span>
-                    )}
-                  </div>
-
+        {/* PhotoMath-style Step Breakdown Display on Branched Child Card */}
+        {branchedMethods.length > 0 && (
+          <div
+            onPointerDown={(e) => e.stopPropagation()}
+            className="p-3 rounded-2xl bg-emerald-50/80 border border-emerald-200 flex flex-col gap-2.5"
+          >
+            {/* Method Tabs if multiple methods exist */}
+            {branchedMethods.length > 1 && (
+              <div className="flex items-center gap-1.5 bg-emerald-100/70 p-1 rounded-xl">
+                {branchedMethods.map((m, idx) => (
                   <button
+                    key={m.name}
                     type="button"
-                    onClick={() => setShowSteps(!showSteps)}
-                    className="text-[11px] font-semibold text-emerald-800 hover:text-emerald-950 cursor-pointer"
+                    onClick={() => setActiveMethodIndex(idx)}
+                    className={`flex-1 py-1 px-2 text-xs font-bold rounded-lg transition cursor-pointer text-center ${
+                      activeMethodIndex === idx
+                        ? 'bg-white text-emerald-900 shadow-2xs'
+                        : 'text-emerald-700 hover:text-emerald-900'
+                    }`}
                   >
-                    {showSteps ? '▼ Скрыть' : '▶ Шаги'}
+                    {m.name}
                   </button>
-                </div>
-
-                {/* Step list for active method */}
-                {showSteps && (
-                  <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-                    {methods[activeMethodIndex]?.steps.map((st, i) => (
-                      <div
-                        key={i}
-                        className="p-2 rounded-xl bg-white/90 border border-emerald-100/90 text-xs text-emerald-950 shadow-2xs leading-relaxed"
-                      >
-                        {st}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                ))}
               </div>
             )}
+
+            {/* Step list for active method */}
+            <div className="flex flex-col gap-2">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">
+                {branchedMethods[activeMethodIndex]?.name || 'Ход решения'}:
+              </div>
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                {branchedMethods[activeMethodIndex]?.steps.map((st, i) => (
+                  <div
+                    key={i}
+                    className="p-2.5 rounded-xl bg-white/95 border border-emerald-100/90 text-xs text-slate-800 shadow-2xs leading-relaxed"
+                  >
+                    {st}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
@@ -537,18 +537,19 @@ export class MathBlockShapeUtil extends BaseBoxShapeUtil<any> {
     color: T.string,
     isEditing: T.boolean,
     error: T.string,
+    methodsJson: T.optional(T.string),
   };
 
   override getDefaultProps(): MathBlockShape['props'] {
     return {
       w: 440,
       h: 360,
-      title: 'Математическое выражение',
-      latex: 'f(x) = \\frac{x^2 - 1}{x - 1}',
+      title: 'Выражение',
+      latex: '', // Empty by default!
       resultLatex: '',
       comment: '',
       color: '#3b82f6',
-      isEditing: false,
+      isEditing: true, // Active and ready to type immediately!
       error: '',
     };
   }

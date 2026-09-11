@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Tldraw, createShapeId, getSnapshot, loadSnapshot, DefaultStylePanel } from 'tldraw';
+import { Tldraw, createShapeId, getSnapshot, loadSnapshot, DefaultStylePanel, DefaultToolbar } from 'tldraw';
 import type { Editor, TLUiComponents, TLAssetStore } from 'tldraw';
 import 'tldraw/tldraw.css';
 import 'katex/dist/katex.min.css';
@@ -370,6 +370,9 @@ export default function App() {
       setEditor(ed);
       editorRef.current = ed;
 
+      // Enable Miro-style dot grid pattern on blank board
+      ed.updateInstanceState({ isGridMode: true });
+
       if (boardRef.current) {
         syncBoardToCanvas(boardRef.current, ed);
       }
@@ -391,6 +394,37 @@ export default function App() {
             autoSaveTimerRef.current = setTimeout(() => {
               executeSave(true);
             }, 800);
+          }
+
+          // Dynamically calculate bend for bound arrows when cards move
+          if (entry.changes.updated) {
+            const updatedKeys = Object.keys(entry.changes.updated);
+            if (updatedKeys.some((k) => k.startsWith('shape:'))) {
+              const allArrows = ed.getCurrentPageShapes().filter((s) => s.type === 'arrow') as any[];
+              allArrows.forEach((arrow) => {
+                const bindings = ed.getBindingsFromShape(arrow.id, 'arrow');
+                const startB = bindings.find((b) => b.props.terminal === 'start');
+                const endB = bindings.find((b) => b.props.terminal === 'end');
+                if (startB && endB) {
+                  const fromShape = ed.getShape(startB.toId) as any;
+                  const toShape = ed.getShape(endB.toId) as any;
+                  if (fromShape && toShape) {
+                    const fromCenterY = fromShape.y + (fromShape.props.h || 0) / 2;
+                    const toCenterY = toShape.y + (toShape.props.h || 0) / 2;
+                    const dy = toCenterY - fromCenterY;
+                    // Horizontal -> 0 (straight). Displaced -> curvy arc!
+                    const targetBend = Math.round(Math.max(-55, Math.min(55, dy * 0.22)));
+                    if (Math.abs((arrow.props.bend || 0) - targetBend) >= 2) {
+                      ed.updateShape({
+                        id: arrow.id,
+                        type: 'arrow',
+                        props: { bend: targetBend },
+                      });
+                    }
+                  }
+                }
+              });
+            }
           }
         }
       });
@@ -494,6 +528,44 @@ export default function App() {
       DebugPanel: null,
       SharePanel: null,
       StylePanel: (props) => (isStylesOpen ? <DefaultStylePanel {...props} /> : null),
+      Toolbar: (props) => (
+        <div
+          onDoubleClick={(e) => {
+            const target = e.target as HTMLElement;
+            const btn = target.closest('button');
+            if (!btn) return;
+            const testId = (btn.getAttribute('data-testid') || '').toLowerCase();
+            const title = (btn.getAttribute('title') || '').toLowerCase();
+            const isArrow = testId.includes('arrow') || title.includes('arrow') || title.includes('стрелк');
+            if (isArrow) {
+              // Double-click on arrow tool in toolbar: activates curved arrow mode
+              if (editorRef.current) {
+                editorRef.current.setCurrentTool('arrow');
+                const center = editorRef.current.getViewportPageBounds().center;
+                const arrowId = createShapeId();
+                editorRef.current.createShape({
+                  id: arrowId,
+                  type: 'arrow',
+                  x: center.x - 70,
+                  y: center.y - 35,
+                  props: {
+                    start: { x: 0, y: 0 },
+                    end: { x: 140, y: 70 },
+                    bend: 32, // Curved arc!
+                    color: 'blue',
+                  },
+                });
+                editorRef.current.select(arrowId);
+              }
+            } else {
+              // Double-click on any other tool: toggle styles panel!
+              setIsStylesOpen((prev) => !prev);
+            }
+          }}
+        >
+          <DefaultToolbar {...props} />
+        </div>
+      ),
     }),
     [isStylesOpen]
   );

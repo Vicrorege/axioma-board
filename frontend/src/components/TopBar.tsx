@@ -77,43 +77,23 @@ export const TopBar: React.FC<TopBarProps> = ({
     editor.createShape({
       id,
       type: 'math-block' as any,
-      x: center.x - 180,
-      y: center.y - 145,
+      x: center.x - 220,
+      y: center.y - 180,
       props: {
-        w: 360,
-        h: 290,
-        title: preset ? preset.title : 'New Expression',
-        latex: preset ? preset.latex : 'x^2 - 4 = 0',
+        w: 440,
+        h: 360,
+        title: preset ? preset.title : 'Выражение',
+        latex: preset ? preset.latex : '',
         resultLatex: '',
         comment: '',
         color: preset ? preset.color : '#3b82f6',
-        isEditing: false,
+        isEditing: true,
         error: '',
       },
     });
 
     editor.select(id);
     setShowPresets(false);
-  };
-
-  const addCurvedArrow = () => {
-    if (!editor) return;
-    const center = editor.getViewportPageBounds().center;
-    const arrowId = createShapeId();
-
-    editor.createShape({
-      id: arrowId,
-      type: 'arrow',
-      x: center.x - 70,
-      y: center.y - 35,
-      props: {
-        start: { x: 0, y: 0 },
-        end: { x: 140, y: 70 },
-        bend: 32,
-        color: 'blue',
-      },
-    });
-    editor.select(arrowId);
   };
 
   return (
@@ -156,15 +136,6 @@ export const TopBar: React.FC<TopBarProps> = ({
         >
           <Plus size={14} />
           <span>Формула</span>
-        </button>
-
-        <button
-          onClick={addCurvedArrow}
-          title="Добавить извилистую стрелку (привязывается к карточкам, изгиб настраивается)"
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
-        >
-          <span className="text-sm font-bold">⤹</span>
-          <span>Кривая стрелка</span>
         </button>
 
         {/* Presets dropdown */}

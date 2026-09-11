@@ -296,18 +296,69 @@ class SympyEngine:
             if p.degree() == 2:
                 coeffs = p.all_coeffs()
                 a, b, c = coeffs[0], coeffs[1], coeffs[2]
+
+                # 1. Incomplete quadratic equation: c == 0 (e.g. x^2 - 4x = 0)
+                if c == 0:
+                    root2 = sp.Rational(-b, a) if isinstance(a, sp.Integer) and isinstance(b, sp.Integer) else -b / a
+                    factored = sp.factor(target)
+                    steps = [
+                        f"1. Уравнение неполное квадратное (свободный член $c = 0$).",
+                        f"2. Вынесем общий множитель ${variable}$ за скобки:",
+                        f"   ${latex(factored)} = 0$",
+                        f"3. Произведение равно нулю, когда хотя бы один из множителей равен 0:",
+                        f"   ${variable} = 0 \\quad \\text{{или}} \\quad {latex(a*var_sym + b)} = 0$",
+                        f"4. Решаем линейное уравнение: ${latex(a*var_sym)} = {latex(-b)} \\implies {variable} = {latex(root2)}$.",
+                        f"5. Корни уравнения: ${variable}_1 = 0$, $\\; {variable}_2 = {latex(root2)}$."
+                    ]
+                    ans = f"{variable}_1 = 0, \\; {variable}_2 = {latex(root2)}"
+                    return [SolutionMethod(name="Вынесение общего множителя", steps=steps, final_answer=ans)]
+
+                # 2. Incomplete quadratic equation: b == 0 (e.g. x^2 - 4 = 0)
+                if b == 0:
+                    val = sp.Rational(-c, a) if isinstance(a, sp.Integer) and isinstance(c, sp.Integer) else -c / a
+                    if val > 0:
+                        sqrt_val = sp.sqrt(val)
+                        steps_diff_sq = [
+                            f"1. Уравнение неполное (коэффициент $b = 0$). Применим формулу разности квадратов $u^2 - v^2 = (u - v)(u + v)$:",
+                            f"   $({variable} - {latex(sqrt_val)})({variable} + {latex(sqrt_val)}) = 0$",
+                            f"2. Приравниваем каждый множитель к нулю:",
+                            f"   ${variable} - {latex(sqrt_val)} = 0 \\implies {variable}_1 = {latex(sqrt_val)}$",
+                            f"   ${variable} + {latex(sqrt_val)} = 0 \\implies {variable}_2 = -{latex(sqrt_val)}$",
+                            f"3. Корни: ${variable} = \\pm {latex(sqrt_val)}$."
+                        ]
+                        steps_direct = [
+                            f"1. Перенесем свободный член в правую часть уравнения:",
+                            f"   ${variable}^2 = {latex(val)}$",
+                            f"2. Извлечем квадратный корень из обеих частей:",
+                            f"   ${variable} = \\pm\\sqrt{{{latex(val)}}} = \\pm {latex(sqrt_val)}$",
+                            f"3. Корни: ${variable}_1 = {latex(sqrt_val)}$, $\\; {variable}_2 = -{latex(sqrt_val)}$."
+                        ]
+                        ans = f"{variable} = \\pm {latex(sqrt_val)}"
+                        return [
+                            SolutionMethod(name="Разность квадратов (ФСУ)", steps=steps_diff_sq, final_answer=ans),
+                            SolutionMethod(name="Перенос и извлечение корня", steps=steps_direct, final_answer=ans)
+                        ]
+                    else:
+                        steps_none = [
+                            f"1. Перенесем свободный член в правую часть уравнения: ${variable}^2 = {latex(val)}$.",
+                            f"2. Квадрат любого действительного числа не может быть отрицательным (${variable}^2 \\ge 0$, а ${latex(val)} < 0$).",
+                            f"3. Следовательно, уравнение не имеет действительных корней (${variable} \\in \\emptyset$)."
+                        ]
+                        return [SolutionMethod(name="Анализ знака квадрата", steps=steps_none, final_answer=r"\emptyset")]
+
+                # 3. Complete quadratic equation: a != 0, b != 0, c != 0 (Discriminant & Vieta)
                 D = b**2 - 4*a*c
                 sqrt_d = sp.sqrt(D)
                 x1 = (-b + sqrt_d) / (2 * a)
                 x2 = (-b - sqrt_d) / (2 * a)
 
                 d_steps = [
-                    f"1. Выпишем коэффициенты уравнения $ax^2 + bx + c = 0$: $a = {latex(a)}$, $b = {latex(b)}$, $c = {latex(c)}$.",
+                    f"1. Выпишем коэффициенты полного квадратного уравнения $ax^2 + bx + c = 0$: $a = {latex(a)}$, $b = {latex(b)}$, $c = {latex(c)}$.",
                     f"2. Вычислим дискриминант: $D = b^2 - 4ac = ({latex(b)})^2 - 4 \\cdot ({latex(a)}) \\cdot ({latex(c)}) = {latex(D)}$.",
                 ]
                 if D > 0:
                     d_steps.append(f"3. Так как $D > 0$, уравнение имеет два различных действительных корня: $\\sqrt{{D}} = {latex(sqrt_d)}$.")
-                    d_steps.append(f"4. Формула корней: $x_{{1,2}} = \\frac{{-b \\pm \\sqrt{{D}}}}{{2a}} = \\frac{{{-latex(b)} \\pm {latex(sqrt_d)}}}{{2 \\cdot ({latex(a)})}}$.")
+                    d_steps.append(f"4. Формула корней: $x_{{1,2}} = \\frac{{-b \\pm \\sqrt{{D}}}}{{2a}} = \\frac{{{latex(-b)} \\pm {latex(sqrt_d)}}}{{2 \\cdot ({latex(a)})}}$.")
                     d_steps.append(f"5. Находим значения: $x_1 = {latex(x1)}$, $\\; x_2 = {latex(x2)}$.")
                     ans = f"{variable}_1 = {latex(x1)}, \\; {variable}_2 = {latex(x2)}"
                 elif D == 0:
@@ -365,8 +416,8 @@ class SympyEngine:
                         except Exception:
                             pass
 
-                        # Try to get PhotoMath steps from AI for interval breakdown
-                        if OmniAIService.is_available():
+                        # Try to get PhotoMath steps from AI for interval breakdown if no methods yet
+                        if not methods and OmniAIService.is_available():
                             ai_res = OmniAIService.solve_with_ai(latex_str, variable=variable)
                             if ai_res and ai_res.get("methods"):
                                 for m in ai_res["methods"]:
