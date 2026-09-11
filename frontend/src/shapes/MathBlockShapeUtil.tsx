@@ -10,6 +10,7 @@ import { GripHorizontal, Edit3, Check, Trash2, ArrowRight } from 'lucide-react';
 import { MathRenderer } from '../components/MathRenderer';
 import { VisualMathEditor } from '../components/VisualMathEditor';
 import { mathApi } from '../services/api';
+import type { SolutionMethod } from '../types/math';
 
 export const MATH_BLOCK_TYPE = 'math-block' as const;
 
@@ -45,7 +46,9 @@ interface DynamicAction {
 }
 
 function getInitialActions(rawLatex: string): DynamicAction[] {
-  const s = (rawLatex || '').toLowerCase();
+  const s = (rawLatex || '').toLowerCase().trim();
+  if (!s) return [];
+
   const isIneq =
     s.includes('<') ||
     s.includes('>') ||
@@ -58,36 +61,47 @@ function getInitialActions(rawLatex: string): DynamicAction[] {
 
   if (isIneq) {
     return [
-      { id: 'solve', label: 'Решить', icon: '⚖️', operation: 'solve', tooltip: 'Решить неравенство' },
-      { id: 'intervals', label: 'Интервалы', icon: '📊', operation: 'ai_steps', tooltip: 'Метод интервалов' },
+      { id: 'solve', label: 'Решить неравенство', icon: '⚖️', operation: 'solve', tooltip: 'Найти интервалы решений' },
+      { id: 'intervals', label: 'Метод интервалов', icon: '📊', operation: 'ai_steps', tooltip: 'Пошаговый разбор метода интервалов' },
       { id: 'domain', label: 'ОДЗ', icon: '🚫', operation: 'domain', tooltip: 'Область допустимых значений' },
-      { id: 'factor', label: 'Разложить', icon: '🧩', operation: 'factor', tooltip: 'Разложить числитель и знаменатель' },
+      { id: 'factor', label: 'Разложить на множители', icon: '🧩', operation: 'factor', tooltip: 'Разложить числитель и знаменатель' },
+      { id: 'simplify', label: 'Упростить', icon: '🪄', operation: 'simplify', tooltip: 'Упростить выражение' },
+    ];
+  }
+
+  // Check quadratic
+  if (s.includes('x^2') || s.includes('x^{2}')) {
+    return [
+      { id: 'solve', label: 'Решить уравнение', icon: '⚖️', operation: 'solve', tooltip: 'Найти корни (дискриминант & Виет)' },
+      { id: 'factor', label: 'Разложить на множители', icon: '🧩', operation: 'factor', tooltip: 'Разложить на множители' },
+      { id: 'diff', label: 'Производная d/dx', icon: '📈', operation: 'diff', tooltip: 'Дифференцировать' },
       { id: 'simplify', label: 'Упростить', icon: '🪄', operation: 'simplify', tooltip: 'Упростить' },
+      { id: 'ai_steps', label: 'Ход решения', icon: '📝', operation: 'ai_steps', tooltip: 'Пошаговый разбор решения' },
     ];
   }
 
   if (s.includes('=')) {
     return [
-      { id: 'solve', label: 'Решить', icon: '⚖️', operation: 'solve', tooltip: 'Найти корни уравнения' },
+      { id: 'solve', label: 'Решить уравнение', icon: '⚖️', operation: 'solve', tooltip: 'Найти корни уравнения' },
       { id: 'factor', label: 'Разложить', icon: '🧩', operation: 'factor', tooltip: 'Разложить на множители' },
-      { id: 'simplify', label: 'Упростить', icon: '🪄', operation: 'simplify', tooltip: 'Упростить' },
-      { id: 'diff', label: 'd/dx', icon: '📈', operation: 'diff', tooltip: 'Дифференцировать' },
-      { id: 'ai_steps', label: 'По шагам', icon: '📝', operation: 'ai_steps', tooltip: 'Пошаговый разбор' },
+      { id: 'simplify', label: 'Упростить', icon: '🪄', operation: 'simplify', tooltip: 'Упростить обе части' },
+      { id: 'diff', label: 'Производная d/dx', icon: '📈', operation: 'diff', tooltip: 'Дифференцировать' },
+      { id: 'ai_steps', label: 'Ход решения', icon: '📝', operation: 'ai_steps', tooltip: 'Пошаговый разбор решения' },
     ];
   }
 
   if (s.includes('\\int')) {
     return [
-      { id: 'integrate', label: 'Вычислить ∫', icon: '∫', operation: 'integrate', tooltip: 'Взять интеграл' },
+      { id: 'integrate', label: 'Вычислить интеграл', icon: '∫', operation: 'integrate', tooltip: 'Взять интеграл' },
       { id: 'by_parts', label: 'По частям', icon: '🔄', operation: 'ai_steps', tooltip: 'Интегрирование по частям' },
       { id: 'simplify', label: 'Упростить', icon: '🪄', operation: 'simplify', tooltip: 'Упростить подынтегральное' },
-      { id: 'diff', label: 'd/dx', icon: '📈', operation: 'diff', tooltip: 'Производная' },
+      { id: 'diff', label: 'Производная d/dx', icon: '📈', operation: 'diff', tooltip: 'Проверить производной' },
     ];
   }
 
   if (s.includes('d/dx') || s.includes('\\frac{d}{dx}')) {
     return [
-      { id: 'diff', label: 'Производная', icon: '📈', operation: 'diff', tooltip: 'Взять производную' },
+      { id: 'diff', label: 'Взять производную', icon: '📈', operation: 'diff', tooltip: 'Взять производную' },
       { id: 'critical', label: 'Экстремумы', icon: '🎯', operation: 'ai_steps', tooltip: 'Критические точки f\'(x)=0' },
       { id: 'simplify', label: 'Упростить', icon: '🪄', operation: 'simplify', tooltip: 'Упростить' },
     ];
@@ -97,8 +111,8 @@ function getInitialActions(rawLatex: string): DynamicAction[] {
     { id: 'eval', label: 'Расчет', icon: '⚡', operation: 'eval', tooltip: 'Численный или аналитический расчет' },
     { id: 'simplify', label: 'Упростить', icon: '🪄', operation: 'simplify', tooltip: 'Упростить выражение' },
     { id: 'factor', label: 'Разложить', icon: '🧩', operation: 'factor', tooltip: 'Разложить на множители' },
-    { id: 'diff', label: 'd/dx', icon: '📈', operation: 'diff', tooltip: 'Производная' },
-    { id: 'integrate', label: '∫ dx', icon: '∫', operation: 'integrate', tooltip: 'Интеграл' },
+    { id: 'diff', label: 'Производная d/dx', icon: '📈', operation: 'diff', tooltip: 'Взять производную' },
+    { id: 'integrate', label: 'Интеграл ∫ dx', icon: '∫', operation: 'integrate', tooltip: 'Взять интеграл' },
   ];
 }
 
@@ -106,16 +120,23 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
   const { w, h, title, latex, resultLatex, comment, color, isEditing, error } = shape.props;
   const [loadingOp, setLoadingOp] = useState<string | null>(null);
   const [actions, setActions] = useState<DynamicAction[]>(() => getInitialActions(latex));
-  const [steps, setSteps] = useState<string[]>([]);
-  const [showSteps, setShowSteps] = useState(false);
+  const [methods, setMethods] = useState<SolutionMethod[]>([]);
+  const [activeMethodIndex, setActiveMethodIndex] = useState(0);
+  const [showSteps, setShowSteps] = useState(true);
+
+  const hasExpression = Boolean(latex && latex.trim().length > 0);
 
   // Dynamic Context-Aware Action Adaptation
   useEffect(() => {
+    if (!hasExpression) {
+      setActions([]);
+      return;
+    }
+
     // 1. Instant heuristic update
     setActions(getInitialActions(latex));
 
     // 2. Debounced deep AI action suggestions from OmniRoute
-    if (!latex || latex.trim().length < 2) return;
     const timer = setTimeout(async () => {
       try {
         const res = await mathApi.getSuggestedActions(latex);
@@ -123,12 +144,12 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
           setActions(res.actions);
         }
       } catch {
-        // Fallback already in place
+        // Local heuristic fallback remains in place
       }
     }, 600);
 
     return () => clearTimeout(timer);
-  }, [latex]);
+  }, [latex, hasExpression]);
 
   const updateProps = (newProps: Partial<MathBlockShape['props']>) => {
     editor.updateShape({
@@ -141,7 +162,9 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
   const handleOp = async (op: string) => {
     setLoadingOp(op);
     updateProps({ error: '' });
-    setSteps([]);
+    setMethods([]);
+    setActiveMethodIndex(0);
+
     try {
       let res;
       if (op === 'eval' || op === 'evaluate') {
@@ -167,8 +190,15 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
           resultLatex: res.result_latex || res.result_str || '',
           error: '',
         });
-        if (res.steps && res.steps.length > 0) {
-          setSteps(res.steps);
+
+        // Parse PhotoMath structured methods or fallback steps
+        if (res.methods && res.methods.length > 0) {
+          setMethods(res.methods);
+          setActiveMethodIndex(0);
+          setShowSteps(true);
+        } else if (res.steps && res.steps.length > 0) {
+          setMethods([{ name: 'Ход решения', steps: res.steps, final_answer: res.result_latex }]);
+          setActiveMethodIndex(0);
           setShowSteps(true);
         }
       } else {
@@ -188,17 +218,18 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
   const handleBranchOut = () => {
     if (!resultLatex) return;
     const newBlockId = createShapeId();
-    const newX = shape.x + w + 80;
-    const newY = shape.y;
+    const newX = shape.x + w + 100;
+    const newY = shape.y + 40;
 
+    // 1. Create Child Card
     editor.createShape({
       id: newBlockId,
       type: 'math-block' as any,
       x: newX,
       y: newY,
       props: {
-        w: 400,
-        h: 320,
+        w: 440,
+        h: 360,
         title: `Шаг из ${title}`,
         latex: resultLatex,
         resultLatex: '',
@@ -209,6 +240,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
       },
     });
 
+    // 2. Create Curved Arrow with magnetic bindings
     try {
       const arrowId = createShapeId();
       editor.createShape({
@@ -216,17 +248,42 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
         type: 'arrow',
         x: shape.x + w,
         y: shape.y + h / 2,
-      });
-      editor.updateShape({
-        id: arrowId,
-        type: 'arrow',
         props: {
           start: { x: 0, y: 0 },
-          end: { x: 80, y: 0 },
+          end: { x: 100, y: 40 },
+          bend: 28, // Elegant curving arc!
+          color: 'green',
+          arrowheadEnd: 'arrow',
+        },
+      });
+
+      // Bind to parent card
+      editor.createBinding({
+        type: 'arrow',
+        fromId: arrowId,
+        toId: shape.id,
+        props: {
+          terminal: 'start',
+          normalizedAnchor: { x: 1, y: 0.5 },
+          isPrecise: true,
+          isExact: false,
+        },
+      });
+
+      // Bind to child card
+      editor.createBinding({
+        type: 'arrow',
+        fromId: arrowId,
+        toId: newBlockId,
+        props: {
+          terminal: 'end',
+          normalizedAnchor: { x: 0, y: 0.5 },
+          isPrecise: true,
+          isExact: false,
         },
       });
     } catch (e) {
-      console.warn('Could not create arrow', e);
+      console.warn('Could not create bound curved arrow', e);
     }
   };
 
@@ -290,7 +347,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
         <div className="flex items-center gap-1 shrink-0" onPointerDown={(e) => e.stopPropagation()}>
           <button
             onClick={handleToggleEditing}
-            className={`p-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition cursor-pointer ${
+            className={`p-1 px-2 rounded-lg text-xs font-semibold flex items-center gap-1 transition cursor-pointer ${
               isEditing
                 ? 'bg-blue-600 text-white shadow-2xs'
                 : 'text-slate-500 hover:bg-slate-200 hover:text-slate-800'
@@ -333,80 +390,115 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
           </div>
         )}
 
-        {/* Dynamic Context-Aware Operations Toolbar */}
-        <div
-          className="flex flex-wrap gap-1.5 pt-0.5"
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          {actions.map((act) => (
-            <button
-              key={act.id || act.label}
-              disabled={loadingOp !== null}
-              onClick={() => handleOp(act.operation)}
-              className="flex-1 min-w-[62px] py-1.5 px-2 text-xs font-semibold bg-slate-50 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 text-slate-700 rounded-xl border border-slate-200 transition disabled:opacity-50 cursor-pointer shadow-2xs text-center flex items-center justify-center gap-1"
-              title={act.tooltip || act.label}
-            >
-              {loadingOp === act.operation ? (
-                <span className="text-xs">⟳</span>
-              ) : (
-                <>
-                  <span className="text-[11px]">{act.icon}</span>
-                  <span className="truncate">{act.label}</span>
-                </>
-              )}
-            </button>
-          ))}
-        </div>
+        {/* Dynamic Context-Aware Operations Toolbar (ONLY when expression is non-empty) */}
+        {hasExpression && actions.length > 0 && (
+          <div
+            className="flex flex-wrap gap-2 pt-1"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {actions.map((act) => (
+              <button
+                key={act.id || act.label}
+                disabled={loadingOp !== null}
+                onClick={() => handleOp(act.operation)}
+                className="px-3 py-1.5 text-xs font-medium rounded-xl border border-slate-200 bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 text-slate-700 shadow-2xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                title={act.tooltip || act.label}
+              >
+                {loadingOp === act.operation ? (
+                  <span className="animate-spin text-xs">⟳</span>
+                ) : (
+                  <>
+                    <span className="text-xs">{act.icon}</span>
+                    <span>{act.label}</span>
+                  </>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Error Display */}
         {error && (
           <div
             onPointerDown={(e) => e.stopPropagation()}
-            className="p-2 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs break-words font-medium"
+            className="p-2.5 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs break-words font-medium"
           >
             ⚠ {error}
           </div>
         )}
 
-        {/* Computed Result Box with Steps & Branching */}
+        {/* Computed Result Box with PhotoMath Steps & Branching */}
         {resultLatex && (
           <div
             onPointerDown={(e) => e.stopPropagation()}
-            className="mt-1 p-2.5 rounded-xl bg-emerald-50/90 border border-emerald-200 flex flex-col gap-1.5"
+            className="mt-1 p-3 rounded-2xl bg-emerald-50/90 border border-emerald-200 flex flex-col gap-2"
           >
             <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-emerald-800">
               <span>Результат</span>
               <button
                 onClick={handleBranchOut}
-                className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-sm cursor-pointer"
+                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-sm cursor-pointer"
                 title="Создать связанную дочернюю карточку с результатом"
               >
                 <span>Ветвить</span>
-                <ArrowRight size={11} />
+                <ArrowRight size={12} />
               </button>
             </div>
-            <div className="overflow-x-auto text-emerald-950 py-1">
-              <MathRenderer latex={resultLatex} fontSize="1.2rem" />
+
+            <div className="overflow-x-auto text-emerald-950 py-1 font-medium">
+              <MathRenderer latex={resultLatex} fontSize="1.25rem" />
             </div>
 
-            {/* Collapsible Step-by-Step Breakdown */}
-            {steps.length > 0 && (
-              <div className="pt-1.5 border-t border-emerald-200/80">
-                <button
-                  type="button"
-                  onClick={() => setShowSteps(!showSteps)}
-                  className="text-[11px] font-semibold text-emerald-800 hover:text-emerald-950 cursor-pointer flex items-center gap-1"
-                >
-                  <span>{showSteps ? '▼ Скрыть шаги' : '▶ Показать шаги решения'} ({steps.length})</span>
-                </button>
+            {/* PhotoMath-style Multiple Solution Methods & Steps */}
+            {methods.length > 0 && (
+              <div className="pt-2 border-t border-emerald-200/90 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1">
+                    {methods.length > 1 ? (
+                      <div className="flex items-center gap-1 bg-emerald-100/70 p-0.5 rounded-lg">
+                        {methods.map((m, idx) => (
+                          <button
+                            key={m.name}
+                            type="button"
+                            onClick={() => setActiveMethodIndex(idx)}
+                            className={`px-2 py-0.5 text-[11px] font-semibold rounded-md transition cursor-pointer ${
+                              activeMethodIndex === idx
+                                ? 'bg-white text-emerald-900 shadow-2xs'
+                                : 'text-emerald-700 hover:text-emerald-900'
+                            }`}
+                          >
+                            {m.name}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">
+                        {methods[0].name}
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowSteps(!showSteps)}
+                    className="text-[11px] font-semibold text-emerald-800 hover:text-emerald-950 cursor-pointer"
+                  >
+                    {showSteps ? '▼ Скрыть' : '▶ Шаги'}
+                  </button>
+                </div>
+
+                {/* Step list for active method */}
                 {showSteps && (
-                  <ol className="mt-1.5 space-y-1 text-[11px] text-emerald-950 pl-4 list-decimal max-h-40 overflow-y-auto">
-                    {steps.map((st, i) => (
-                      <li key={i} className="leading-snug">
+                  <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                    {methods[activeMethodIndex]?.steps.map((st, i) => (
+                      <div
+                        key={i}
+                        className="p-2 rounded-xl bg-white/90 border border-emerald-100/90 text-xs text-emerald-950 shadow-2xs leading-relaxed"
+                      >
                         {st}
-                      </li>
+                      </div>
                     ))}
-                  </ol>
+                  </div>
                 )}
               </div>
             )}
@@ -449,8 +541,8 @@ export class MathBlockShapeUtil extends BaseBoxShapeUtil<any> {
 
   override getDefaultProps(): MathBlockShape['props'] {
     return {
-      w: 400,
-      h: 330,
+      w: 440,
+      h: 360,
       title: 'Математическое выражение',
       latex: 'f(x) = \\frac{x^2 - 1}{x - 1}',
       resultLatex: '',
@@ -466,6 +558,10 @@ export class MathBlockShapeUtil extends BaseBoxShapeUtil<any> {
   }
 
   override canScroll() {
+    return true;
+  }
+
+  override canBind() {
     return true;
   }
 

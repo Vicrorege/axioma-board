@@ -154,16 +154,32 @@ class OmniAIService:
     @classmethod
     def solve_with_ai(cls, latex_str: str, variable: str = "x") -> Optional[Dict[str, Any]]:
         """
-        Solves complex expressions, inequalities, or equations with step-by-step mathematical reasoning.
+        Solves complex expressions, inequalities, or equations with PhotoMath-style step-by-step mathematical reasoning.
         """
         prompt = (
-            f"Solve the mathematical expression or inequality: {latex_str}\n"
+            f"Solve the mathematical equation, inequality, or problem like PhotoMath: {latex_str}\n"
             f"Target variable: {variable}\n"
-            "Provide the exact answer in clean LaTeX (result_latex) and a list of clear steps in Russian (steps).\n"
-            "Format JSON: {\"result_latex\": str, \"result_str\": str, \"steps\": [str], \"summary\": str}"
+            "Requirements:\n"
+            "- Step-by-step explanation MUST be human-readable, educational, and structured in Russian.\n"
+            "- If quadratic equation, provide BOTH 'Через дискриминант' and 'По теореме Виета' methods.\n"
+            "- If inequality, provide 'Метод интервалов' (critical points, interval sign test, solution set).\n"
+            "- If calculus/expression, provide the detailed algebraic derivation.\n"
+            "Return JSON strictly:\n"
+            "{\n"
+            '  "result_latex": "exact answer in clean LaTeX",\n'
+            '  "result_str": "string form",\n'
+            '  "methods": [\n'
+            '    {\n'
+            '      "name": "Название метода (например, Через дискриминант или По теореме Виета)",\n'
+            '      "steps": ["Шаг 1...", "Шаг 2..."],\n'
+            '      "final_answer": "ответ в LaTeX"\n'
+            '    }\n'
+            '  ],\n'
+            '  "steps": ["Все шаги по порядку..."]\n'
+            "}"
         )
 
         return cls._call_chat([
-            {"role": "system", "content": "You are a world-class mathematician. Output strict JSON with result_latex and steps."},
+            {"role": "system", "content": "You are a PhotoMath-style mathematical solver. Provide detailed, human-readable explanations in Russian. Return strict JSON."},
             {"role": "user", "content": prompt}
         ], json_mode=True, timeout=12.0)

@@ -50,6 +50,11 @@ class SuggestedActionsResponse(BaseModel):
     expression_type: str = "general"
     actions: List[ActionButton] = Field(default_factory=list)
 
+class SolutionMethod(BaseModel):
+    name: str = Field(description="Name of the method, e.g. 'Через дискриминант' or 'По теореме Виета'")
+    steps: List[str] = Field(default_factory=list, description="Ordered step-by-step mathematical reasoning")
+    final_answer: Optional[str] = Field(default=None, description="Final answer for this method")
+
 class MathResult(BaseModel):
     success: bool = Field(description="Whether the operation succeeded")
     operation: str = Field(description="Operation performed")
@@ -58,6 +63,7 @@ class MathResult(BaseModel):
     result_str: Optional[str] = Field(default=None, description="Plain text / Python string representation")
     numeric_value: Optional[float] = Field(default=None, description="Numerical float value if evaluatable")
     variables_found: List[str] = Field(default_factory=list, description="Variables detected in the expression")
+    methods: Optional[List[SolutionMethod]] = Field(default=None, description="PhotoMath-style multiple solution methods")
     steps: Optional[List[str]] = Field(default=None, description="Step-by-step notes or explanations if applicable")
     error: Optional[str] = Field(default=None, description="Error message if operation failed")
 

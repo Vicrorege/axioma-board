@@ -1,3 +1,9 @@
+export interface SolutionMethod {
+  name: string;
+  steps: string[];
+  final_answer?: string | null;
+}
+
 export interface MathResult {
   success: boolean;
   operation: string;
@@ -6,6 +12,7 @@ export interface MathResult {
   result_str?: string | null;
   numeric_value?: number | null;
   variables_found: string[];
+  methods?: SolutionMethod[] | null;
   steps?: string[] | null;
   error?: string | null;
 }

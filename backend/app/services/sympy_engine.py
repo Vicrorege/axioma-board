@@ -9,7 +9,7 @@ from sympy import (
     Interval, Union, Set, Rel, fraction
 )
 
-from app.models.math import MathResult, AstNode, AstResponse
+from app.models.math import MathResult, AstNode, AstResponse, SolutionMethod
 from app.services.omni_ai import OmniAIService
 
 logger = logging.getLogger("sympy_engine")
@@ -288,12 +288,66 @@ class SympyEngine:
                 error=str(e)
             )
 
+    @staticmethod
+    def _get_quadratic_breakdown(expr: Any, var_sym: Symbol, variable: str = "x") -> Optional[List[SolutionMethod]]:
+        target = expr.lhs - expr.rhs if isinstance(expr, Eq) else expr
+        try:
+            p = sp.Poly(target, var_sym)
+            if p.degree() == 2:
+                coeffs = p.all_coeffs()
+                a, b, c = coeffs[0], coeffs[1], coeffs[2]
+                D = b**2 - 4*a*c
+                sqrt_d = sp.sqrt(D)
+                x1 = (-b + sqrt_d) / (2 * a)
+                x2 = (-b - sqrt_d) / (2 * a)
+
+                d_steps = [
+                    f"1. Выпишем коэффициенты уравнения $ax^2 + bx + c = 0$: $a = {latex(a)}$, $b = {latex(b)}$, $c = {latex(c)}$.",
+                    f"2. Вычислим дискриминант: $D = b^2 - 4ac = ({latex(b)})^2 - 4 \\cdot ({latex(a)}) \\cdot ({latex(c)}) = {latex(D)}$.",
+                ]
+                if D > 0:
+                    d_steps.append(f"3. Так как $D > 0$, уравнение имеет два различных действительных корня: $\\sqrt{{D}} = {latex(sqrt_d)}$.")
+                    d_steps.append(f"4. Формула корней: $x_{{1,2}} = \\frac{{-b \\pm \\sqrt{{D}}}}{{2a}} = \\frac{{{-latex(b)} \\pm {latex(sqrt_d)}}}{{2 \\cdot ({latex(a)})}}$.")
+                    d_steps.append(f"5. Находим значения: $x_1 = {latex(x1)}$, $\\; x_2 = {latex(x2)}$.")
+                    ans = f"{variable}_1 = {latex(x1)}, \\; {variable}_2 = {latex(x2)}"
+                elif D == 0:
+                    d_steps.append(f"3. Так как $D = 0$, уравнение имеет один корень кратности 2.")
+                    d_steps.append(f"4. Формула: $x = \\frac{{-b}}{{2a}} = {latex(x1)}$.")
+                    ans = f"{variable} = {latex(x1)}"
+                else:
+                    d_steps.append(f"3. Так как $D < 0$, действительных корней нет ($x \\in \\emptyset$).")
+                    ans = r"\emptyset"
+
+                methods = [SolutionMethod(name="Через дискриминант", steps=d_steps, final_answer=ans)]
+
+                if D >= 0:
+                    sum_r = sp.Rational(-b, a) if isinstance(a, sp.Integer) and isinstance(b, sp.Integer) else -b/a
+                    prod_r = sp.Rational(c, a) if isinstance(a, sp.Integer) and isinstance(c, sp.Integer) else c/a
+                    v_steps = [
+                        f"1. По теореме Виета для корней $x_1, x_2$ приведенного уравнения:",
+                        f"$\\begin{{cases}} x_1 + x_2 = -\\frac{{b}}{{a}} = {latex(sum_r)} \\\\ x_1 \\cdot x_2 = \\frac{{c}}{{a}} = {latex(prod_r)} \\end{{cases}}$",
+                        f"2. Подбором множителей свободного члена {latex(prod_r)}, дающих в сумме {latex(sum_r)}:",
+                        f"Корни: $x_1 = {latex(x1)}$ и $x_2 = {latex(x2)}$.",
+                        f"3. Проверка: ${latex(x1)} + {latex(x2)} = {latex(sum_r)}$, $\\; {latex(x1)} \\cdot {latex(x2)} = {latex(prod_r)}$."
+                    ]
+                    methods.append(SolutionMethod(name="По теореме Виета", steps=v_steps, final_answer=ans))
+                return methods
+        except Exception as e:
+            logger.debug(f"Quadratic breakdown error: {e}")
+        return None
+
     @classmethod
     def solve_equation(cls, latex_str: str, variable: str = "x") -> MathResult:
         try:
             expr, is_rel = cls.parse(latex_str)
             all_syms = cls.extract_symbols(expr)
             var_sym = symbols(variable)
+            methods: List[SolutionMethod] = []
+
+            # Check if quadratic
+            quad_methods = cls._get_quadratic_breakdown(expr, var_sym, variable)
+            if quad_methods:
+                methods.extend(quad_methods)
 
             # 1. Handle Inequalities and Relational expressions
             if isinstance(expr, (Rel, sp.core.relational.Relational, sp.logic.boolalg.Boolean)):
@@ -310,6 +364,19 @@ class SympyEngine:
                                 steps.append(f"В виде неравенств: {latex(rel_sol)}")
                         except Exception:
                             pass
+
+                        # Try to get PhotoMath steps from AI for interval breakdown
+                        if OmniAIService.is_available():
+                            ai_res = OmniAIService.solve_with_ai(latex_str, variable=variable)
+                            if ai_res and ai_res.get("methods"):
+                                for m in ai_res["methods"]:
+                                    methods.append(SolutionMethod(**m))
+                            elif ai_res and ai_res.get("steps"):
+                                methods.append(SolutionMethod(name="Метод интервалов", steps=ai_res["steps"], final_answer=res_latex))
+
+                        if not methods:
+                            methods.append(SolutionMethod(name="Метод интервалов", steps=steps, final_answer=res_latex))
+
                         return MathResult(
                             success=True,
                             operation=f"solve inequality for {variable}",
@@ -317,6 +384,7 @@ class SympyEngine:
                             result_latex=res_latex,
                             result_str=res_str,
                             variables_found=all_syms,
+                            methods=methods,
                             steps=steps
                         )
                 except Exception as se:
@@ -335,6 +403,7 @@ class SympyEngine:
                             result_latex=res_latex,
                             result_str=res_str,
                             variables_found=all_syms,
+                            methods=methods if methods else None,
                             steps=[f"Решение неравенства: {res_latex}"]
                         )
                 except Exception as se:
@@ -356,6 +425,15 @@ class SympyEngine:
                 res_str = str(solutions)
                 steps = [f"Решение: {res_latex}"]
 
+            # If no methods yet, query AI for PhotoMath breakdown
+            if not methods and OmniAIService.is_available():
+                ai_res = OmniAIService.solve_with_ai(latex_str, variable=variable)
+                if ai_res and ai_res.get("methods"):
+                    for m in ai_res["methods"]:
+                        methods.append(SolutionMethod(**m))
+                elif ai_res and ai_res.get("steps"):
+                    methods.append(SolutionMethod(name="Пошаговый ход решения", steps=ai_res["steps"], final_answer=res_latex))
+
             return MathResult(
                 success=True,
                 operation=f"solve for {variable}",
@@ -363,6 +441,7 @@ class SympyEngine:
                 result_latex=res_latex,
                 result_str=res_str,
                 variables_found=all_syms,
+                methods=methods if methods else None,
                 steps=steps
             )
         except Exception as e:
