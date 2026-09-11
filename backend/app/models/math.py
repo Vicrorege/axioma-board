@@ -50,9 +50,16 @@ class SuggestedActionsResponse(BaseModel):
     expression_type: str = "general"
     actions: List[ActionButton] = Field(default_factory=list)
 
+class MilestoneStage(BaseModel):
+    title: str = Field(description="Stage title, e.g. 'Разложение и ОДЗ' or 'Дискриминант'")
+    summary: str = Field(description="Main milestone summary with LaTeX formulas")
+    sub_steps: List[str] = Field(default_factory=list, description="Granular detailed steps expandable via button")
+    result_latex: Optional[str] = Field(default=None, description="Stage formula/result")
+
 class SolutionMethod(BaseModel):
     name: str = Field(description="Name of the method, e.g. 'Через дискриминант' or 'По теореме Виета'")
     steps: List[str] = Field(default_factory=list, description="Ordered step-by-step mathematical reasoning")
+    milestones: Optional[List[MilestoneStage]] = Field(default=None, description="Major solution milestones with granular sub-steps")
     final_answer: Optional[str] = Field(default=None, description="Final answer for this method")
 
 class MathResult(BaseModel):

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   BaseBoxShapeUtil,
   HTMLContainer,
@@ -144,6 +144,18 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
 
   const [solutionMethods, setSolutionMethods] = useState<SolutionMethod[]>([]);
   const [activeMethodIndex, setActiveMethodIndex] = useState(0);
+  const [showDetails, setShowDetails] = useState(false);
+  const hoverStartTimeRef = useRef(0);
+
+  const handleCardWheel = (e: React.WheelEvent) => {
+    const now = performance.now();
+    // If mouse entered during active trackpad panning (< 220ms ago), pass through to canvas
+    if (now - hoverStartTimeRef.current < 220) {
+      return;
+    }
+    // Stationary cursor on card: stop propagation to scroll card
+    e.stopPropagation();
+  };
 
   const hasExpression = Boolean(latex && latex.trim().length > 0);
 
@@ -243,17 +255,119 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
     }
   };
 
-  // Branch out: each step becomes an individual connected card in a horizontal chain
+  // Branch out: milestones or wrapped 2-column step flow
   const handleBranchOut = () => {
     if (!resultLatex) return;
 
     const activeMethod = solutionMethods[activeMethodIndex] || solutionMethods[0];
-    const stepsList = activeMethod?.steps || [];
+    const milestones = activeMethod?.milestones;
 
+    // IF MILESTONES: Spawn major chunks in a 2-column or 2-row layout!
+    if (milestones && milestones.length > 0) {
+      const stepWidth = 390;
+      const stepHeight = 230;
+      const spacingX = 90;
+      const spacingY = 50;
+
+      let prevId = shape.id;
+      let prevX = shape.x;
+      let prevY = shape.y;
+      let prevW = w;
+      let prevH = h;
+
+      milestones.forEach((m, idx) => {
+        const stepCardId = createShapeId();
+        const col = Math.floor(idx / 2);
+        const row = idx % 2;
+
+        const nextX = shape.x + w + spacingX + col * (stepWidth + spacingX);
+        const nextY = shape.y + row * (stepHeight + spacingY);
+
+        const isLast = idx === milestones.length - 1;
+
+        const subStepsText =
+          m.sub_steps && m.sub_steps.length > 0
+            ? `\n\n---DETAILED_STEPS---\n` + m.sub_steps.join('\n')
+            : '';
+
+        editor.createShape({
+          id: stepCardId,
+          type: 'math-block' as any,
+          x: nextX,
+          y: nextY,
+          props: {
+            w: stepWidth,
+            h: stepHeight,
+            title: `Этап ${idx + 1}: ${m.title}`,
+            latex: m.result_latex || '',
+            resultLatex: isLast ? resultLatex : '',
+            comment: m.summary + subStepsText,
+            color: isLast ? '#10b981' : '#6366f1',
+            isEditing: false,
+            error: '',
+          },
+        });
+
+        try {
+          const arrowId = createShapeId();
+          const isCurved = row !== 0 || col !== 0;
+          editor.createShape({
+            id: arrowId,
+            type: 'arrow',
+            x: prevX + prevW,
+            y: prevY + prevH / 2,
+            props: {
+              start: { x: 0, y: 0 },
+              end: { x: nextX - (prevX + prevW), y: nextY + stepHeight / 2 - (prevY + prevH / 2) },
+              bend: isCurved ? 24 : 0,
+              color: isLast ? 'green' : 'violet',
+              arrowheadEnd: 'arrow',
+            },
+          });
+
+          editor.createBinding({
+            type: 'arrow',
+            fromId: arrowId,
+            toId: prevId,
+            props: {
+              terminal: 'start',
+              normalizedAnchor: { x: 1, y: 0.5 },
+              isPrecise: true,
+              isExact: false,
+            },
+          });
+
+          editor.createBinding({
+            type: 'arrow',
+            fromId: arrowId,
+            toId: stepCardId,
+            props: {
+              terminal: 'end',
+              normalizedAnchor: { x: 0, y: 0.5 },
+              isPrecise: true,
+              isExact: false,
+            },
+          });
+        } catch (e) {
+          console.warn('Could not create milestone arrow', e);
+        }
+
+        prevId = stepCardId;
+        prevX = nextX;
+        prevY = nextY;
+        prevW = stepWidth;
+        prevH = stepHeight;
+      });
+      return;
+    }
+
+    // IF RAW STEPS (Fallback): 2-column wrapped layout instead of one giant straight line
+    const stepsList = activeMethod?.steps || [];
     if (stepsList.length > 0) {
       const stepWidth = 380;
-      const stepHeight = 220;
-      const spacingX = 100;
+      const stepHeight = 210;
+      const spacingX = 80;
+      const spacingY = 50;
 
       let prevId = shape.id;
       let prevX = shape.x;
@@ -263,12 +377,14 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
 
       stepsList.forEach((stepText, idx) => {
         const stepCardId = createShapeId();
-        const nextX = prevX + prevW + spacingX;
-        const nextY = shape.y; // horizontal alignment initially
+        const col = Math.floor(idx / 2);
+        const row = idx % 2;
+
+        const nextX = shape.x + w + spacingX + col * (stepWidth + spacingX);
+        const nextY = shape.y + row * (stepHeight + spacingY);
 
         const isLast = idx === stepsList.length - 1;
 
-        // 1. Create step card
         editor.createShape({
           id: stepCardId,
           type: 'math-block' as any,
@@ -287,9 +403,9 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
           },
         });
 
-        // 2. Create bound straight arrow
         try {
           const arrowId = createShapeId();
+          const isCurved = row !== 0 || col !== 0;
           editor.createShape({
             id: arrowId,
             type: 'arrow',
@@ -297,14 +413,13 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
             y: prevY + prevH / 2,
             props: {
               start: { x: 0, y: 0 },
-              end: { x: spacingX, y: 0 },
-              bend: 0, // Starts straight!
+              end: { x: nextX - (prevX + prevW), y: nextY + stepHeight / 2 - (prevY + prevH / 2) },
+              bend: isCurved ? 20 : 0,
               color: isLast ? 'green' : 'violet',
               arrowheadEnd: 'arrow',
             },
           });
 
-          // Bind to previous card
           editor.createBinding({
             type: 'arrow',
             fromId: arrowId,
@@ -317,7 +432,6 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
             },
           });
 
-          // Bind to this step card
           editor.createBinding({
             type: 'arrow',
             fromId: arrowId,
@@ -438,12 +552,11 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
   return (
     <div
       data-math-card="true"
-      onWheel={(e) => {
-        e.stopPropagation();
+      onMouseEnter={() => {
+        hoverStartTimeRef.current = performance.now();
       }}
-      onWheelCapture={(e) => {
-        e.stopPropagation();
-      }}
+      onWheel={handleCardWheel}
+      onWheelCapture={handleCardWheel}
       className="w-full h-full flex flex-col bg-white rounded-2xl shadow-lg border border-slate-200/90 overflow-hidden font-sans select-none text-slate-800 transition-shadow hover:shadow-xl cursor-default"
       style={{ borderTop: `6px solid ${color}` }}
     >
@@ -622,15 +735,45 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
           </div>
         )}
 
-        {/* Formatted Step Explanation if this card represents a single step */}
-        {comment && (
-          <div
-            onPointerDown={(e) => e.stopPropagation()}
-            className="p-2.5 rounded-xl bg-slate-50/90 border border-slate-200/80 text-xs text-slate-800 leading-relaxed shadow-2xs"
-          >
-            <FormattedStepText text={comment} />
-          </div>
-        )}
+        {/* Formatted Step / Milestone Explanation */}
+        {comment && (() => {
+          const parts = comment.split('\n\n---DETAILED_STEPS---\n');
+          const mainSummary = parts[0];
+          const subSteps = parts[1] ? parts[1].split('\n').filter(Boolean) : [];
+
+          return (
+            <div
+              onPointerDown={(e) => e.stopPropagation()}
+              className="p-2.5 rounded-xl bg-slate-50/90 border border-slate-200/80 text-xs text-slate-800 leading-relaxed shadow-2xs space-y-2"
+            >
+              <FormattedStepText text={mainSummary} />
+
+              {subSteps.length > 0 && (
+                <div className="pt-2 border-t border-slate-200/80">
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setShowDetails((prev) => !prev)}
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>{showDetails ? '▲ Свернуть подробности' : `▼ Подробнее (${subSteps.length} мелких шага)`}</span>
+                    </button>
+                  </div>
+
+                  {showDetails && (
+                    <div className="mt-2 space-y-1.5 pl-2 border-l-2 border-blue-400">
+                      {subSteps.map((st, i) => (
+                        <div key={i} className="p-1.5 rounded-lg bg-white border border-slate-200/70 shadow-2xs">
+                          <FormattedStepText text={st} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Note / Step Comment Footer */}
         <input

@@ -9,7 +9,7 @@ from sympy import (
     Interval, Union, Set, Rel, fraction
 )
 
-from app.models.math import MathResult, AstNode, AstResponse, SolutionMethod
+from app.models.math import MathResult, AstNode, AstResponse, SolutionMethod, MilestoneStage
 from app.services.omni_ai import OmniAIService
 
 logger = logging.getLogger("sympy_engine")
@@ -311,7 +311,21 @@ class SympyEngine:
                         f"5. Корни уравнения: ${variable}_1 = 0$, $\\; {variable}_2 = {latex(root2)}$."
                     ]
                     ans = f"{variable}_1 = 0, \\; {variable}_2 = {latex(root2)}"
-                    return [SolutionMethod(name="Вынесение общего множителя", steps=steps, final_answer=ans)]
+                    milestones = [
+                        MilestoneStage(
+                            title="Вынесение множителя",
+                            summary=f"Выносим общий множитель ${variable}$ за скобки: ${latex(factored)} = 0$",
+                            sub_steps=steps[:3],
+                            result_latex=f"{latex(factored)} = 0"
+                        ),
+                        MilestoneStage(
+                            title="Нахождение корней",
+                            summary=f"Приравниваем сомножители к 0: ${variable}_1 = 0, \\; {variable}_2 = {latex(root2)}$",
+                            sub_steps=steps[3:],
+                            result_latex=ans
+                        )
+                    ]
+                    return [SolutionMethod(name="Вынесение общего множителя", steps=steps, milestones=milestones, final_answer=ans)]
 
                 # 2. Incomplete quadratic equation: b == 0 (e.g. x^2 - 4 = 0)
                 if b == 0:
@@ -334,9 +348,37 @@ class SympyEngine:
                             f"3. Корни: ${variable}_1 = {latex(sqrt_val)}$, $\\; {variable}_2 = -{latex(sqrt_val)}$."
                         ]
                         ans = f"{variable} = \\pm {latex(sqrt_val)}"
+                        m1 = [
+                            MilestoneStage(
+                                title="Разность квадратов (ФСУ)",
+                                summary=f"Применяем $u^2 - v^2$: $({variable} - {latex(sqrt_val)})({variable} + {latex(sqrt_val)}) = 0$",
+                                sub_steps=steps_diff_sq[:2],
+                                result_latex=f"({variable} - {latex(sqrt_val)})({variable} + {latex(sqrt_val)}) = 0"
+                            ),
+                            MilestoneStage(
+                                title="Корни уравнения",
+                                summary=f"Приравниваем скобки к 0: ${variable} = \\pm {latex(sqrt_val)}$",
+                                sub_steps=steps_diff_sq[2:],
+                                result_latex=ans
+                            )
+                        ]
+                        m2 = [
+                            MilestoneStage(
+                                title="Перенос свободного члена",
+                                summary=f"Переносим вправо: ${variable}^2 = {latex(val)}$",
+                                sub_steps=steps_direct[:1],
+                                result_latex=f"{variable}^2 = {latex(val)}"
+                            ),
+                            MilestoneStage(
+                                title="Извлечение корня",
+                                summary=f"Извлекаем $\\pm\\sqrt{{...}}$: ${variable} = \\pm {latex(sqrt_val)}$",
+                                sub_steps=steps_direct[1:],
+                                result_latex=ans
+                            )
+                        ]
                         return [
-                            SolutionMethod(name="Разность квадратов (ФСУ)", steps=steps_diff_sq, final_answer=ans),
-                            SolutionMethod(name="Перенос и извлечение корня", steps=steps_direct, final_answer=ans)
+                            SolutionMethod(name="Разность квадратов (ФСУ)", steps=steps_diff_sq, milestones=m1, final_answer=ans),
+                            SolutionMethod(name="Перенос и извлечение корня", steps=steps_direct, milestones=m2, final_answer=ans)
                         ]
                     else:
                         steps_none = [
@@ -369,7 +411,21 @@ class SympyEngine:
                     d_steps.append(f"3. Так как $D < 0$, действительных корней нет ($x \\in \\emptyset$).")
                     ans = r"\emptyset"
 
-                methods = [SolutionMethod(name="Через дискриминант", steps=d_steps, final_answer=ans)]
+                m_disc = [
+                    MilestoneStage(
+                        title="Вычисление дискриминанта",
+                        summary=f"Дискриминант: $D = b^2 - 4ac = {latex(D)}$",
+                        sub_steps=d_steps[:3],
+                        result_latex=f"D = {latex(D)}"
+                    ),
+                    MilestoneStage(
+                        title="Нахождение корней",
+                        summary=f"Корни уравнения: ${ans}$",
+                        sub_steps=d_steps[3:],
+                        result_latex=ans
+                    )
+                ]
+                methods = [SolutionMethod(name="Через дискриминант", steps=d_steps, milestones=m_disc, final_answer=ans)]
 
                 if D >= 0:
                     sum_r = sp.Rational(-b, a) if isinstance(a, sp.Integer) and isinstance(b, sp.Integer) else -b/a
@@ -381,7 +437,21 @@ class SympyEngine:
                         f"Корни: $x_1 = {latex(x1)}$ и $x_2 = {latex(x2)}$.",
                         f"3. Проверка: ${latex(x1)} + {latex(x2)} = {latex(sum_r)}$, $\\; {latex(x1)} \\cdot {latex(x2)} = {latex(prod_r)}$."
                     ]
-                    methods.append(SolutionMethod(name="По теореме Виета", steps=v_steps, final_answer=ans))
+                    m_vieta = [
+                        MilestoneStage(
+                            title="Теорема Виета",
+                            summary=f"Система: $x_1 + x_2 = {latex(sum_r)}$, $\\; x_1 \\cdot x_2 = {latex(prod_r)}$",
+                            sub_steps=v_steps[:2],
+                            result_latex=ans
+                        ),
+                        MilestoneStage(
+                            title="Подбор корней",
+                            summary=f"Корни уравнения: ${ans}$",
+                            sub_steps=v_steps[2:],
+                            result_latex=ans
+                        )
+                    ]
+                    methods.append(SolutionMethod(name="По теореме Виета", steps=v_steps, milestones=m_vieta, final_answer=ans))
                 return methods
         except Exception as e:
             logger.debug(f"Quadratic breakdown error: {e}")

@@ -1,6 +1,14 @@
+export interface MilestoneStage {
+  title: string;
+  summary: string;
+  sub_steps: string[];
+  result_latex?: string | null;
+}
+
 export interface SolutionMethod {
   name: string;
   steps: string[];
+  milestones?: MilestoneStage[] | null;
   final_answer?: string | null;
 }
 
