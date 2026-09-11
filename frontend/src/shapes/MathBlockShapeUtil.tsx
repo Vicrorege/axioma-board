@@ -46,6 +46,24 @@ interface DynamicAction {
   tooltip?: string;
 }
 
+const renderActionIcon = (iconStr: string, op: string) => {
+  const icon = (iconStr || '').trim();
+  if (['⚖️', '🪄', '📈', '∫', '⚡', '🚫', '🧩', '📊', '📝', '🎯', '🔄', '📐'].includes(icon)) {
+    return <span className="text-xs">{icon}</span>;
+  }
+  const s = (icon + ' ' + op).toLowerCase();
+  if (s.includes('solve') || s.includes('calc') || s.includes('equal')) return <span className="text-xs">⚖️</span>;
+  if (s.includes('diff') || s.includes('deriv') || s.includes('trend')) return <span className="text-xs">📈</span>;
+  if (s.includes('integ')) return <span className="text-xs">∫</span>;
+  if (s.includes('factor') || s.includes('grid')) return <span className="text-xs">🧩</span>;
+  if (s.includes('interval') || s.includes('timeline')) return <span className="text-xs">📊</span>;
+  if (s.includes('domain') || s.includes('warn')) return <span className="text-xs">🚫</span>;
+  if (s.includes('step') || s.includes('psych') || s.includes('note')) return <span className="text-xs">📝</span>;
+  if (s.includes('simp') || s.includes('magic')) return <span className="text-xs">🪄</span>;
+  if (s.includes('eval') || s.includes('bolt') || s.includes('flash')) return <span className="text-xs">⚡</span>;
+  return <span className="text-xs">✨</span>;
+};
+
 function getInitialActions(rawLatex: string): DynamicAction[] {
   const s = (rawLatex || '').toLowerCase().trim();
   if (!s) return [];
@@ -516,7 +534,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
                   <span className="animate-spin text-xs">⟳</span>
                 ) : (
                   <>
-                    <span className="text-xs">{act.icon}</span>
+                    {renderActionIcon(act.icon, act.operation)}
                     <span>{act.label}</span>
                   </>
                 )}

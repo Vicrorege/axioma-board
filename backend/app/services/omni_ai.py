@@ -90,6 +90,7 @@ class OmniAIService:
             "- 'integrate': compute indefinite or definite integral\n"
             "- 'evaluate': numerical calculation\n"
             "- 'ai_steps': step-by-step detailed solution by AI\n"
+            "Use standard single emoji for 'icon' field: ⚖️ for solve, 🧩 for factor, 🚫 for domain, 📊 for intervals, 🪄 for simplify, 📈 for diff, ∫ for integral, ⚡ for eval, 📝 for steps.\n"
             "Labels should be concise in Russian (1-2 words), e.g.: 'Решить', 'ОДЗ', 'Разложить', 'd/dx', 'Метод интервалов', 'Упростить'."
         )
 

@@ -28,7 +28,11 @@ export const MathRenderer: React.FC<MathRendererProps> = ({
   }, [latex, displayMode]);
 
   if (!latex || !latex.trim()) {
-    return <span className="text-gray-400 italic text-sm">(empty expression)</span>;
+    return (
+      <span className="text-slate-400 font-medium text-sm flex items-center gap-1.5">
+        <span>✎ Введите математическое выражение...</span>
+      </span>
+    );
   }
 
   return (
