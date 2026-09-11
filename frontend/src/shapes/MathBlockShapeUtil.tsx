@@ -252,6 +252,13 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
   }, [shape.id, shape.x, shape.y, latex, comment, resultLatex, error, isEditing, h, actions.length, methodsJson, showDetails]);
 
   const handleCardWheel = (e: React.WheelEvent) => {
+    // CRITICAL: On trackpad pinch-to-zoom (ctrlKey or metaKey is true),
+    // NEVER stopPropagation! Stopping propagation causes the browser to intercept
+    // and zoom the entire web page viewport instead of zooming the tldraw canvas!
+    if (e.ctrlKey || e.metaKey) {
+      return;
+    }
+
     const now = performance.now();
     // If mouse entered during active trackpad panning (< 220ms ago), pass through to canvas
     if (now - hoverStartTimeRef.current < 220) {
@@ -678,7 +685,10 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
 
       {/* Card Content with isolated scroll events */}
       <div
-        onWheel={(e) => e.stopPropagation()}
+        onWheel={(e) => {
+          if (e.ctrlKey || e.metaKey) return;
+          e.stopPropagation();
+        }}
         className="flex-1 flex flex-col p-3 gap-2.5 overflow-hidden"
       >
         {/* MathLive Formula Input or Render Mode */}
