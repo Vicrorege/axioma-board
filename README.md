@@ -148,6 +148,16 @@ See [API.md](API.md) for full endpoint specifications.
 
 ---
 
+## ☕ Support & Donations
+
+If you find AxiomaBoard useful and want to support active development:
+
+- **USDT (TRC-20):** `TUCG5NupeUwZLZVAVEEYvcp3aiVgstgpx2`
+- **TON:** `UQAJe3HKIX2CC0uEhdmcEfKotOc_BiPeLugLg2sKFGiLmMsg`
+- **Bitcoin (BTC):** `bc1qgwh77wv8jt9k3me8tpjd2hjdumek833496h4sh`
+
+---
+
 ## 📄 License
 
 This project is licensed under the [MIT License](LICENSE).
