@@ -133,6 +133,31 @@ function getInitialActions(rawLatex: string): DynamicAction[] {
   ];
 }
 
+function extractFormulaAndExplanation(text: string): { explanation: string; formula: string } {
+  const s = (text || '').trim().replace(/^(?:\d+[\.\)]\s*|Шаг\s*\d+:\s*)/i, '').trim();
+
+  // 1. Check for $...$ or $$...$$
+  const matches = [...s.matchAll(/\${1,2}([^\$]+)\${1,2}/g)].map((m) => m[1].trim());
+  if (matches.length > 0) {
+    const formula = matches.reduce((a, b) => (b.length > a.length ? b : a), matches[0]);
+    let expl = s.replace(/\${1,2}[^\$]+\${1,2}/g, '').trim();
+    expl = expl.replace(/[:\s\.]+$/, '').trim();
+    return { explanation: expl, formula };
+  }
+
+  // 2. Check for colon followed by expression/equation: "Explanation: a = b"
+  if (s.includes(':')) {
+    const colonIdx = s.indexOf(':');
+    const p1 = s.slice(0, colonIdx).trim();
+    const p2 = s.slice(colonIdx + 1).trim();
+    if (['=', '<', '>', '\\le', '\\ge', '\\in', '\\pm', '->', '→'].some((op) => p2.includes(op))) {
+      return { explanation: p1, formula: p2.replace(/^\$+|\$+$/g, '').trim() };
+    }
+  }
+
+  return { explanation: s, formula: '' };
+}
+
 const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
   const { w, h, title, latex, resultLatex, comment, color, isEditing, error, methodsJson } = shape.props;
   const [loadingOp, setLoadingOp] = useState<string | null>(null);
@@ -263,9 +288,9 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
     const stepsList = activeMethod?.steps || [];
 
     if (stepsList.length > 0) {
-      const stepWidth = 360;
-      const stepHeight = 115;
-      const gapY = 28;
+      const stepWidth = 380;
+      const stepHeight = 150;
+      const gapY = 32;
       const stepX = shape.x + w + 130;
 
       const stepIds: any[] = [];
@@ -277,6 +302,10 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
         const stepY = shape.y + idx * (stepHeight + gapY);
         const isLast = idx === stepsList.length - 1;
 
+        const { explanation, formula } = extractFormulaAndExplanation(stepText);
+        const cardLatex = formula || (isLast ? resultLatex : '');
+        const cardComment = explanation;
+
         editor.createShape({
           id: stepCardId,
           type: 'math-block' as any,
@@ -286,9 +315,9 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
             w: stepWidth,
             h: stepHeight,
             title: `Шаг ${idx + 1}`,
-            latex: '',
-            resultLatex: isLast ? resultLatex : '',
-            comment: stepText,
+            latex: cardLatex,
+            resultLatex: isLast ? (resultLatex || cardLatex) : '',
+            comment: cardComment,
             color: isLast ? '#10b981' : '#8b5cf6',
             isEditing: false,
             error: '',

@@ -162,6 +162,7 @@ class OmniAIService:
             f"Target variable: {variable}\n"
             "Requirements:\n"
             "- Step-by-step explanation MUST be human-readable, educational, and structured in Russian.\n"
+            "- In each step string, ALWAYS write the explanation followed by a colon and the exact LaTeX formula enclosed in dollar signs, e.g.: 'Разложим числитель на множители: $x^3 - x^2 + 6x - 6 = (x^2 + 6)(x - 1)$'.\n"
             "- If quadratic equation, provide BOTH 'Через дискриминант' and 'По теореме Виета' methods.\n"
             "- If inequality, provide 'Метод интервалов' (critical points, interval sign test, solution set).\n"
             "- If calculus/expression, provide the detailed algebraic derivation.\n"
