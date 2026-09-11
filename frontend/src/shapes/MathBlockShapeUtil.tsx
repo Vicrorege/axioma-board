@@ -255,167 +255,107 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
     }
   };
 
-  // Branch out: milestones or wrapped 2-column step flow
+  // Branch out: vertical sequence of step cards linked by arrows (as drawn in specification)
   const handleBranchOut = () => {
     if (!resultLatex) return;
 
     const activeMethod = solutionMethods[activeMethodIndex] || solutionMethods[0];
-    const milestones = activeMethod?.milestones;
-
-    // IF MILESTONES: Spawn major chunks in a 2-column or 2-row layout!
-    if (milestones && milestones.length > 0) {
-      const stepWidth = 390;
-      const stepHeight = 230;
-      const spacingX = 90;
-      const spacingY = 50;
-
-      let prevId = shape.id;
-      let prevX = shape.x;
-      let prevY = shape.y;
-      let prevW = w;
-      let prevH = h;
-
-      milestones.forEach((m, idx) => {
-        const stepCardId = createShapeId();
-        const col = Math.floor(idx / 2);
-        const row = idx % 2;
-
-        const nextX = shape.x + w + spacingX + col * (stepWidth + spacingX);
-        const nextY = shape.y + row * (stepHeight + spacingY);
-
-        const isLast = idx === milestones.length - 1;
-
-        const subStepsText =
-          m.sub_steps && m.sub_steps.length > 0
-            ? `\n\n---DETAILED_STEPS---\n` + m.sub_steps.join('\n')
-            : '';
-
-        editor.createShape({
-          id: stepCardId,
-          type: 'math-block' as any,
-          x: nextX,
-          y: nextY,
-          props: {
-            w: stepWidth,
-            h: stepHeight,
-            title: `Этап ${idx + 1}: ${m.title}`,
-            latex: m.result_latex || '',
-            resultLatex: isLast ? resultLatex : '',
-            comment: m.summary + subStepsText,
-            color: isLast ? '#10b981' : '#6366f1',
-            isEditing: false,
-            error: '',
-          },
-        });
-
-        try {
-          const arrowId = createShapeId();
-          const isCurved = row !== 0 || col !== 0;
-          editor.createShape({
-            id: arrowId,
-            type: 'arrow',
-            x: prevX + prevW,
-            y: prevY + prevH / 2,
-            props: {
-              start: { x: 0, y: 0 },
-              end: { x: nextX - (prevX + prevW), y: nextY + stepHeight / 2 - (prevY + prevH / 2) },
-              bend: isCurved ? 24 : 0,
-              color: isLast ? 'green' : 'violet',
-              arrowheadEnd: 'arrow',
-            },
-          });
-
-          editor.createBinding({
-            type: 'arrow',
-            fromId: arrowId,
-            toId: prevId,
-            props: {
-              terminal: 'start',
-              normalizedAnchor: { x: 1, y: 0.5 },
-              isPrecise: true,
-              isExact: false,
-            },
-          });
-
-          editor.createBinding({
-            type: 'arrow',
-            fromId: arrowId,
-            toId: stepCardId,
-            props: {
-              terminal: 'end',
-              normalizedAnchor: { x: 0, y: 0.5 },
-              isPrecise: true,
-              isExact: false,
-            },
-          });
-        } catch (e) {
-          console.warn('Could not create milestone arrow', e);
-        }
-
-        prevId = stepCardId;
-        prevX = nextX;
-        prevY = nextY;
-        prevW = stepWidth;
-        prevH = stepHeight;
-      });
-      return;
-    }
-
-    // IF RAW STEPS (Fallback): 2-column wrapped layout instead of one giant straight line
     const stepsList = activeMethod?.steps || [];
-    if (stepsList.length > 0) {
-      const stepWidth = 380;
-      const stepHeight = 210;
-      const spacingX = 80;
-      const spacingY = 50;
 
-      let prevId = shape.id;
-      let prevX = shape.x;
-      let prevY = shape.y;
-      let prevW = w;
-      let prevH = h;
+    if (stepsList.length > 0) {
+      const stepWidth = 360;
+      const stepHeight = 115;
+      const gapY = 28;
+      const stepX = shape.x + w + 130;
+
+      const stepIds: any[] = [];
 
       stepsList.forEach((stepText, idx) => {
         const stepCardId = createShapeId();
-        const col = Math.floor(idx / 2);
-        const row = idx % 2;
+        stepIds.push(stepCardId);
 
-        const nextX = shape.x + w + spacingX + col * (stepWidth + spacingX);
-        const nextY = shape.y + row * (stepHeight + spacingY);
-
+        const stepY = shape.y + idx * (stepHeight + gapY);
         const isLast = idx === stepsList.length - 1;
 
         editor.createShape({
           id: stepCardId,
           type: 'math-block' as any,
-          x: nextX,
-          y: nextY,
+          x: stepX,
+          y: stepY,
           props: {
             w: stepWidth,
             h: stepHeight,
-            title: `Шаг ${idx + 1}: ${activeMethod.name}`,
+            title: `Шаг ${idx + 1}`,
             latex: '',
             resultLatex: isLast ? resultLatex : '',
             comment: stepText,
-            color: isLast ? '#10b981' : '#6366f1',
+            color: isLast ? '#10b981' : '#8b5cf6',
             isEditing: false,
             error: '',
           },
         });
+      });
 
+      // 1. Arrow from Parent Card (right center) to Step 1 (left center)
+      try {
+        const firstArrowId = createShapeId();
+        editor.createShape({
+          id: firstArrowId,
+          type: 'arrow',
+          x: shape.x + w,
+          y: shape.y + h / 2,
+          props: {
+            start: { x: 0, y: 0 },
+            end: { x: 130, y: stepHeight / 2 - h / 2 },
+            bend: 0,
+            color: 'violet',
+            arrowheadEnd: 'arrow',
+          },
+        });
+
+        editor.createBinding({
+          type: 'arrow',
+          fromId: firstArrowId,
+          toId: shape.id,
+          props: {
+            terminal: 'start',
+            normalizedAnchor: { x: 1, y: 0.5 },
+            isPrecise: true,
+            isExact: false,
+          },
+        });
+
+        editor.createBinding({
+          type: 'arrow',
+          fromId: firstArrowId,
+          toId: stepIds[0],
+          props: {
+            terminal: 'end',
+            normalizedAnchor: { x: 0, y: 0.5 },
+            isPrecise: true,
+            isExact: false,
+          },
+        });
+      } catch (e) {
+        console.warn('Could not create parent to step 1 arrow', e);
+      }
+
+      // 2. Sequential vertical arrows from Step[i-1] (bottom center) to Step[i] (top center)
+      for (let i = 1; i < stepIds.length; i++) {
         try {
           const arrowId = createShapeId();
-          const isCurved = row !== 0 || col !== 0;
+          const prevY = shape.y + (i - 1) * (stepHeight + gapY);
+
           editor.createShape({
             id: arrowId,
             type: 'arrow',
-            x: prevX + prevW,
-            y: prevY + prevH / 2,
+            x: stepX + stepWidth / 2,
+            y: prevY + stepHeight,
             props: {
               start: { x: 0, y: 0 },
-              end: { x: nextX - (prevX + prevW), y: nextY + stepHeight / 2 - (prevY + prevH / 2) },
-              bend: isCurved ? 20 : 0,
-              color: isLast ? 'green' : 'violet',
+              end: { x: 0, y: gapY },
+              bend: 0,
+              color: i === stepIds.length - 1 ? 'green' : 'violet',
               arrowheadEnd: 'arrow',
             },
           });
@@ -423,10 +363,10 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
           editor.createBinding({
             type: 'arrow',
             fromId: arrowId,
-            toId: prevId,
+            toId: stepIds[i - 1],
             props: {
               terminal: 'start',
-              normalizedAnchor: { x: 1, y: 0.5 },
+              normalizedAnchor: { x: 0.5, y: 1 },
               isPrecise: true,
               isExact: false,
             },
@@ -435,24 +375,19 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
           editor.createBinding({
             type: 'arrow',
             fromId: arrowId,
-            toId: stepCardId,
+            toId: stepIds[i],
             props: {
               terminal: 'end',
-              normalizedAnchor: { x: 0, y: 0.5 },
+              normalizedAnchor: { x: 0.5, y: 0 },
               isPrecise: true,
               isExact: false,
             },
           });
         } catch (e) {
-          console.warn('Could not create step arrow', e);
+          console.warn(`Could not create vertical arrow between step ${i - 1} and ${i}`, e);
         }
+      }
 
-        prevId = stepCardId;
-        prevX = nextX;
-        prevY = nextY;
-        prevW = stepWidth;
-        prevH = stepHeight;
-      });
       return;
     }
 
@@ -467,8 +402,8 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
       x: newX,
       y: newY,
       props: {
-        w: 440,
-        h: 340,
+        w: 400,
+        h: 220,
         title: `Шаг из ${title}`,
         latex: resultLatex,
         resultLatex: '',
@@ -775,20 +710,22 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
           );
         })()}
 
-        {/* Note / Step Comment Footer */}
-        <input
-          type="text"
-          value={comment}
-          onPointerDown={(e) => e.stopPropagation()}
-          onKeyDown={(e) => {
-            if (e.key === 'Backspace' || e.key === 'Delete') {
-              e.stopPropagation();
-            }
-          }}
-          onChange={(e) => updateProps({ comment: e.target.value })}
-          placeholder="Пояснение шага или комментарий..."
-          className="mt-auto text-xs text-slate-500 bg-transparent border-t border-slate-100 pt-1.5 focus:outline-none focus:text-slate-800 cursor-text"
-        />
+        {/* Note / Step Comment Footer - only on user editable cards, not on automated step cards */}
+        {!title.startsWith('Шаг') && (
+          <input
+            type="text"
+            value={comment}
+            onPointerDown={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === 'Backspace' || e.key === 'Delete') {
+                e.stopPropagation();
+              }
+            }}
+            onChange={(e) => updateProps({ comment: e.target.value })}
+            placeholder="Пояснение шага или комментарий..."
+            className="mt-auto text-xs text-slate-500 bg-transparent border-t border-slate-100 pt-1.5 focus:outline-none focus:text-slate-800 cursor-text"
+          />
+        )}
       </div>
     </div>
   );

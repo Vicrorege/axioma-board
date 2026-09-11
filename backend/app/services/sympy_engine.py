@@ -333,12 +333,12 @@ class SympyEngine:
                     if val > 0:
                         sqrt_val = sp.sqrt(val)
                         steps_diff_sq = [
-                            f"1. Уравнение неполное (коэффициент $b = 0$). Применим формулу разности квадратов $u^2 - v^2 = (u - v)(u + v)$:",
-                            f"   $({variable} - {latex(sqrt_val)})({variable} + {latex(sqrt_val)}) = 0$",
-                            f"2. Приравниваем каждый множитель к нулю:",
-                            f"   ${variable} - {latex(sqrt_val)} = 0 \\implies {variable}_1 = {latex(sqrt_val)}$",
-                            f"   ${variable} + {latex(sqrt_val)} = 0 \\implies {variable}_2 = -{latex(sqrt_val)}$",
-                            f"3. Корни: ${variable} = \\pm {latex(sqrt_val)}$."
+                            f"Формула разности квадратов: $u^2 - v^2 = (u - v)(u + v)$",
+                            f"Раскладываем выражение на множители: $({variable} - {latex(sqrt_val)})({variable} + {latex(sqrt_val)}) = 0$",
+                            f"Произведение равно нулю, когда хотя бы один сомножитель равен 0",
+                            f"${variable} - {latex(sqrt_val)} = 0 \\implies {variable}_1 = {latex(sqrt_val)}$",
+                            f"${variable} + {latex(sqrt_val)} = 0 \\implies {variable}_2 = -{latex(sqrt_val)}$",
+                            f"Корни уравнения: ${variable} = \\pm {latex(sqrt_val)}$"
                         ]
                         steps_direct = [
                             f"1. Перенесем свободный член в правую часть уравнения:",
