@@ -32,12 +32,13 @@ interface TopBarProps {
 }
 
 const MATH_PRESETS = [
-  { name: 'Quadratic Equation', title: 'Quadratic', latex: 'a x^2 + b x + c = 0', color: '#3b82f6' },
-  { name: 'Cubic Polynomial', title: 'Cubic', latex: 'x^3 - 6x^2 + 11x - 6 = 0', color: '#6366f1' },
-  { name: 'Derivative / Calculus', title: 'Diff Exam', latex: 'f(x) = x^3 \\cdot \\sin(x)', color: '#ec4899' },
-  { name: 'Gaussian Integral', title: 'Integral', latex: '\\int_{-\\infty}^{\\infty} e^{-x^2} dx', color: '#10b981' },
-  { name: "Euler's Identity", title: 'Euler', latex: 'e^{i \\pi} + 1 = 0', color: '#8b5cf6' },
-  { name: 'Trig Simplification', title: 'Trig', latex: '\\sin^2(x) + \\cos^2(x)', color: '#f59e0b' },
+  { name: 'Квадратное уравнение', title: 'Квадратное', latex: 'x^2 - 5x + 6 = 0', color: '#3b82f6' },
+  { name: 'Рациональное неравенство', title: 'Неравенство', latex: '\\frac{x^3 - x^2 + 6x - 6}{x^2 - 16} < 0', color: '#6366f1' },
+  { name: 'Разность квадратов (ФСУ)', title: 'Разность квадратов', latex: 'x^2 - 9 = 0', color: '#10b981' },
+  { name: 'Производная произведения', title: 'Производная', latex: 'f(x) = x^3 \\cdot \\sin(x)', color: '#ec4899' },
+  { name: 'Определенный интеграл', title: 'Интеграл Гаусса', latex: '\\int_{-\\infty}^{\\infty} e^{-x^2} dx', color: '#059669' },
+  { name: 'Тригонометрическое тождество', title: 'Тригонометрия', latex: '\\sin^2(x) + \\cos^2(x)', color: '#f59e0b' },
+  { name: 'Тождество Эйлера', title: 'Эйлер', latex: 'e^{i \\pi} + 1 = 0', color: '#8b5cf6' },
 ];
 
 export const TopBar: React.FC<TopBarProps> = ({

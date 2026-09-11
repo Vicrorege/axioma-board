@@ -115,9 +115,32 @@ class SympyEngine:
         try:
             expr, _ = cls.parse(latex_str)
             all_syms = cls.extract_symbols(expr)
-            simplified = simplify(expr)
-            res_latex = latex(simplified)
-            res_str = str(simplified)
+
+            # Standardize e, i, pi if parsed as generic symbols
+            subs_map = {}
+            for s in expr.free_symbols:
+                if s.name == "e":
+                    subs_map[s] = sp.E
+                elif s.name == "i":
+                    subs_map[s] = sp.I
+                elif s.name == "pi":
+                    subs_map[s] = sp.pi
+
+            expr_sub = expr.subs(subs_map) if subs_map else expr
+
+            simplified = simplify(expr_sub)
+            if hasattr(simplified, "doit"):
+                simplified = simplified.doit()
+
+            if simplified is True or str(simplified) == "True":
+                res_latex = r"0 = 0 \quad (\text{тождество})"
+                res_str = "True"
+            elif simplified is False or str(simplified) == "False":
+                res_latex = r"\text{неверно}"
+                res_str = "False"
+            else:
+                res_latex = latex(simplified)
+                res_str = str(simplified)
 
             return MathResult(
                 success=True,
@@ -232,8 +255,25 @@ class SympyEngine:
             expr, _ = cls.parse(latex_str)
             all_syms = cls.extract_symbols(expr)
             var_sym = symbols(wrt)
-            res = diff(expr, var_sym, order)
-            res_latex = latex(res)
+
+            # If equation of form f(x) = expr or y = expr, differentiate the expression part
+            target_expr = expr
+            prefix = ""
+            if isinstance(expr, Eq):
+                lhs_str = str(expr.lhs).strip()
+                if lhs_str in ["f(x)", "y", "g(x)", "h(x)", "u(x)", "v(x)"] or lhs_str == "y":
+                    target_expr = expr.rhs
+                    func_name = lhs_str.split("(")[0] if "(" in lhs_str else "y"
+                    prime = "'" * order
+                    prefix = f"{func_name}{prime}({wrt}) = " if "(" in lhs_str else f"y{prime} = "
+                elif str(expr.rhs).strip() in ["f(x)", "y", "g(x)"]:
+                    target_expr = expr.lhs
+                    func_name = str(expr.rhs).split("(")[0]
+                    prime = "'" * order
+                    prefix = f"{func_name}{prime}({wrt}) = "
+
+            res = diff(target_expr, var_sym, order)
+            res_latex = prefix + latex(res)
             res_str = str(res)
 
             return MathResult(
@@ -259,6 +299,23 @@ class SympyEngine:
             expr, _ = cls.parse(latex_str)
             all_syms = cls.extract_symbols(expr)
             var_sym = symbols(wrt)
+
+            # If parsed expr is already an Integral (e.g. from \int ... dx)
+            if isinstance(expr, sp.Integral):
+                # Standardize e -> E
+                sym_e = symbols("e")
+                expr_sub = expr.subs(sym_e, sp.E)
+                res = expr_sub.doit()
+                res_latex = latex(res)
+                res_str = str(res)
+                return MathResult(
+                    success=True,
+                    operation="integrate",
+                    input_latex=latex_str,
+                    result_latex=res_latex,
+                    result_str=res_str,
+                    variables_found=all_syms
+                )
 
             if definite and lower is not None and upper is not None:
                 low_parsed, _ = cls.parse(lower)
@@ -549,8 +606,9 @@ class SympyEngine:
             if quad_methods:
                 methods.extend(quad_methods)
 
-            # 1. Handle Inequalities and Relational expressions
-            if isinstance(expr, (Rel, sp.core.relational.Relational, sp.logic.boolalg.Boolean)):
+            # 1. Handle Inequalities (strictly <, >, <=, >=)
+            is_strict_ineq = isinstance(expr, (sp.StrictLessThan, sp.StrictGreaterThan, sp.LessThan, sp.GreaterThan))
+            if is_strict_ineq:
                 # Try solveset first on reals
                 try:
                     sol_set = solveset(expr, var_sym, domain=sp.S.Reals)
