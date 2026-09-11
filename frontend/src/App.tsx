@@ -193,6 +193,8 @@ export default function App() {
       if (currentBoard.snapshot?.canvas_state) {
         try {
           loadSnapshot(targetEditor.store, currentBoard.snapshot.canvas_state);
+          targetEditor.updateInstanceState({ isGridMode: true });
+          targetEditor.clearHistory();
           return;
         } catch (err) {
           console.warn('Could not load full canvas state, falling back to block sync', err);
