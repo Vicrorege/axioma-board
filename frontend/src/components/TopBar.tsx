@@ -1,22 +1,12 @@
 import React, { useState } from 'react';
-import type { Editor } from 'tldraw';
-import { createShapeId } from 'tldraw';
-import {
-  Plus,
-  BookOpen,
-  Save,
-  Check,
-  Lock,
-  LogOut,
-  LogIn,
-  Sun,
-  Moon,
-} from 'lucide-react';
+import type { TldrawApp } from '@tldraw/tldraw';
+import { TDShapeType } from '@tldraw/tldraw';
 import { BoardSwitcher } from './BoardSwitcher';
 import type { User } from '../types/auth';
 
 interface TopBarProps {
-  editor: Editor | null;
+  app?: TldrawApp | null;
+  editor?: any;
   boardTitle: string;
   onUpdateTitle: (title: string) => void;
   onSave: () => void;
@@ -25,27 +15,18 @@ interface TopBarProps {
   onLock: () => void;
   boards: Array<{ id: string; title: string; created_at: string; updated_at: string }>;
   activeBoardId: string | null;
-  onSelectBoard: (boardId: string) => void;
+  onSelectBoard: (id: string) => void;
   onCreateBoard: () => void;
-  onDeleteBoard: (boardId: string) => void;
+  onDeleteBoard: (id: string) => void;
   currentUser: User | null;
   onOpenAuth: () => void;
   onLogout: () => void;
-  isDarkMode: boolean;
-  onToggleDarkMode: () => void;
+  isDarkMode?: boolean;
+  onToggleDarkMode?: () => void;
 }
 
-const MATH_PRESETS = [
-  { name: 'Квадратное уравнение', title: 'Квадратное', latex: 'x^2 - 5x + 6 = 0', color: '#3b82f6' },
-  { name: 'Рациональное неравенство', title: 'Неравенство', latex: '\\frac{x^3 - x^2 + 6x - 6}{x^2 - 16} < 0', color: '#6366f1' },
-  { name: 'Разность квадратов (ФСУ)', title: 'Разность квадратов', latex: 'x^2 - 9 = 0', color: '#10b981' },
-  { name: 'Производная произведения', title: 'Производная', latex: 'f(x) = x^3 \\cdot \\sin(x)', color: '#ec4899' },
-  { name: 'Определенный интеграл', title: 'Интеграл Гаусса', latex: '\\int_{-\\infty}^{\\infty} e^{-x^2} dx', color: '#059669' },
-  { name: 'Тригонометрическое тождество', title: 'Тригонометрия', latex: '\\sin^2(x) + \\cos^2(x)', color: '#f59e0b' },
-  { name: 'Тождество Эйлера', title: 'Эйлер', latex: 'e^{i \\pi} + 1 = 0', color: '#8b5cf6' },
-];
-
 export const TopBar: React.FC<TopBarProps> = ({
+  app,
   editor,
   boardTitle,
   onUpdateTitle,
@@ -64,32 +45,31 @@ export const TopBar: React.FC<TopBarProps> = ({
   isDarkMode,
   onToggleDarkMode,
 }) => {
+  void currentUser;
+  void onOpenAuth;
+  void onLogout;
+  void editor;
   const [showPresets, setShowPresets] = useState(false);
 
   const addMathBlock = (preset?: { title: string; latex: string; color: string }) => {
-    if (!editor) return;
-    const center = editor.getViewportPageBounds().center;
-    const id = createShapeId();
+    if (!app) return;
+    const center = app.centerPoint;
+    const id = 'math_' + Math.random().toString(36).slice(2, 9);
 
-    editor.createShape({
+    app.createShapes({
       id,
-      type: 'math-block' as any,
-      x: center.x - 220,
-      y: center.y - 180,
-      props: {
-        w: 440,
-        h: 360,
-        title: preset ? preset.title : 'Выражение',
-        latex: preset ? preset.latex : '',
-        resultLatex: '',
-        comment: '',
-        color: preset ? preset.color : '#3b82f6',
-        isEditing: true,
-        error: '',
-      },
-    });
+      type: TDShapeType.Rectangle,
+      point: [center[0] - 220, center[1] - 180],
+      size: [440, 360],
+      title: preset ? preset.title : 'Выражение',
+      latex: preset ? preset.latex : '',
+      resultLatex: '',
+      comment: '',
+      color: preset ? preset.color : '#3b82f6',
+      error: '',
+    } as any);
 
-    editor.select(id);
+    app.select(id);
     setShowPresets(false);
   };
 
@@ -107,157 +87,126 @@ export const TopBar: React.FC<TopBarProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <span className={`font-bold tracking-tight text-sm ${isDarkMode ? 'text-slate-100' : 'text-slate-800'}`}>AxiomaBoard</span>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
-                SymPy Engine
+              <span className="font-extrabold text-sm tracking-tight bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent dark:from-blue-400 dark:to-indigo-300">
+                Axioma
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+                MIT Core
               </span>
             </div>
           </div>
         </div>
 
-        <div className={`h-5 w-px mx-1 ${isDarkMode ? 'bg-slate-700' : 'bg-slate-200'}`} />
+        <div className="h-4 w-[1px] bg-slate-200 dark:bg-slate-700" />
 
-        {/* Board Switcher dropdown */}
         <BoardSwitcher
           boards={boards}
           activeBoardId={activeBoardId}
-          boardTitle={boardTitle}
-          onUpdateTitle={onUpdateTitle}
           onSelectBoard={onSelectBoard}
           onCreateBoard={onCreateBoard}
           onDeleteBoard={onDeleteBoard}
+          boardTitle={boardTitle}
+          onUpdateTitle={onUpdateTitle}
         />
       </div>
 
       {/* Center Actions */}
       <div className="flex items-center gap-2">
-        <button
-          onClick={() => addMathBlock()}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition shadow-sm shadow-blue-600/20 cursor-pointer"
-        >
-          <Plus size={14} />
-          <span>Формула</span>
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => addMathBlock()}
+            className="flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl shadow-md shadow-blue-500/20 hover:shadow-blue-500/30 transition cursor-pointer"
+          >
+            <span>+ Формула</span>
+          </button>
+        </div>
 
-        {/* Presets dropdown */}
+        {/* Math Presets Dropdown */}
         <div className="relative">
           <button
             onClick={() => setShowPresets(!showPresets)}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
-              isDarkMode
-                ? 'bg-slate-800 hover:bg-slate-700 text-slate-200'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-            }`}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 transition cursor-pointer"
           >
-            <span>Шаблоны</span>
+            <span>Примеры</span>
             <span className="text-[10px]">▼</span>
           </button>
 
           {showPresets && (
-            <div className={`absolute top-full mt-1.5 left-0 w-56 rounded-xl shadow-xl border py-1.5 z-50 ${
-              isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-700'
-            }`}>
-              <div className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-400' : 'text-slate-400'}`}>
-                Быстрая вставка
+            <div className="absolute left-0 mt-2 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2 z-50 flex flex-col gap-1">
+              <div className="px-2 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                Готовые формулы
               </div>
-              {MATH_PRESETS.map((p) => (
-                <button
-                  key={p.name}
-                  onClick={() => addMathBlock(p)}
-                  className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between cursor-pointer ${
-                    isDarkMode ? 'hover:bg-slate-700/80 text-slate-200' : 'hover:bg-blue-50 text-slate-700'
-                  }`}
-                >
-                  <span>{p.name}</span>
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
-                </button>
-              ))}
+              <button
+                onClick={() => addMathBlock({ title: 'Квадратное уравнение', latex: '2x^2 + 5x - 3 = 0', color: '#3b82f6' })}
+                className="text-left px-2.5 py-1.5 text-xs rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition"
+              >
+                2x² + 5x - 3 = 0
+              </button>
+              <button
+                onClick={() => addMathBlock({ title: 'Метод интервалов', latex: '\\frac{x^3 - x^2 + 6x - 6}{x^2 - 16} < 0', color: '#8b5cf6' })}
+                className="text-left px-2.5 py-1.5 text-xs rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition"
+              >
+                (x³ - x² + 6x - 6)/(x² - 16) &lt; 0
+              </button>
+              <button
+                onClick={() => addMathBlock({ title: 'Разность квадратов', latex: 'x^2 - 4 = 0', color: '#10b981' })}
+                className="text-left px-2.5 py-1.5 text-xs rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition"
+              >
+                x² - 4 = 0
+              </button>
+              <button
+                onClick={() => addMathBlock({ title: 'Производная произведения', latex: 'f(x) = x^3 \\sin(x)', color: '#ec4899' })}
+                className="text-left px-2.5 py-1.5 text-xs rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition"
+              >
+                f(x) = x³ sin(x)
+              </button>
+              <button
+                onClick={() => addMathBlock({ title: 'Интеграл Гаусса', latex: '\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}', color: '#f59e0b' })}
+                className="text-left px-2.5 py-1.5 text-xs rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition"
+              >
+                ∫ e^(-x²) dx = √π
+              </button>
+              <button
+                onClick={() => addMathBlock({ title: 'Тождество Эйлера', latex: 'e^{i\\pi} + 1 = 0', color: '#06b6d4' })}
+                className="text-left px-2.5 py-1.5 text-xs rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition"
+              >
+                e^(iπ) + 1 = 0
+              </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Right Tools & User Profile */}
+      {/* Right Tools */}
       <div className="flex items-center gap-2">
-        {/* Dark/Light Theme Toggle */}
-        <button
-          onClick={onToggleDarkMode}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
-            isDarkMode
-              ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700'
-              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-          }`}
-          title={isDarkMode ? 'Включить светлую тему' : 'Включить тёмную тему'}
-        >
-          {isDarkMode ? <Sun size={13} className="text-amber-400" /> : <Moon size={13} />}
-          <span>{isDarkMode ? 'Светлая' : 'Тёмная'}</span>
-        </button>
-
-        <a
-          href="/docs"
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
-            isDarkMode
-              ? 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-          }`}
-          title="OpenAPI / Swagger documentation"
-        >
-          <BookOpen size={13} />
-          <span>Open API</span>
-        </a>
-
-        <button
-          onClick={onSave}
-          disabled={isSaving}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition disabled:opacity-50 cursor-pointer"
-        >
-          {isSaved ? <Check size={13} className="text-emerald-300" /> : <Save size={13} />}
-          <span>{isSaving ? 'Сохранение...' : isSaved ? 'Сохранено' : 'Сохранить'}</span>
-        </button>
-
-        <div className={`h-4 w-px mx-0.5 ${isDarkMode ? 'bg-slate-700' : 'bg-slate-200'}`} />
-
-        {/* User Account Button */}
-        {currentUser ? (
-          <div className={`flex items-center gap-1.5 pl-2 pr-1.5 py-1 rounded-xl text-xs border ${
-            isDarkMode ? 'bg-slate-800/80 border-slate-700' : 'bg-slate-50 border-slate-200'
-          }`}>
-            <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-[10px]">
-              {currentUser.username[0].toUpperCase()}
-            </div>
-            <span className={`font-semibold max-w-[90px] truncate ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>
-              {currentUser.username}
-            </span>
-            <button
-              onClick={onLogout}
-              className="p-1 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 transition cursor-pointer"
-              title="Выйти из аккаунта"
-            >
-              <LogOut size={13} />
-            </button>
-          </div>
-        ) : (
+        {onToggleDarkMode && (
           <button
-            onClick={onOpenAuth}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer border ${
-              isDarkMode
-                ? 'bg-blue-950/40 text-blue-300 border-blue-800 hover:bg-blue-900/50'
-                : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200'
-            }`}
+            onClick={onToggleDarkMode}
+            className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 transition cursor-pointer"
+            title={isDarkMode ? 'Светлая тема' : 'Тёмная тема'}
           >
-            <LogIn size={13} />
-            <span>Войти</span>
+            {isDarkMode ? '☀️' : '🌙'}
           </button>
         )}
 
         <button
-          onClick={onLock}
-          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition cursor-pointer"
-          title="Заблокировать доступ (вернуть плейсхолдер)"
+          onClick={onSave}
+          disabled={isSaving}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border transition cursor-pointer ${
+            isSaved
+              ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300'
+              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700'
+          }`}
         >
-          <Lock size={15} />
+          <span>{isSaving ? 'Сохранение...' : isSaved ? 'Сохранено ✓' : 'Сохранить'}</span>
+        </button>
+
+        <button
+          onClick={onLock}
+          className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+          title="Заблокировать доску"
+        >
+          🔒
         </button>
       </div>
     </header>
