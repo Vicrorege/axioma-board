@@ -105,7 +105,16 @@ export const VisualMathEditor: React.FC<VisualMathEditorProps> = ({
       mf.style.setProperty('--caret-color', isDark ? '#60a5fa' : '#2563eb');
       mf.style.setProperty('--selection-background-color', isDark ? '#2563eb' : '#bfdbfe');
       mf.style.setProperty('--selection-color', '#ffffff');
+      mf.style.backgroundColor = 'transparent';
       mf.style.color = isDark ? '#f8fafc' : '#0f172a';
+
+      // Also set on shadow root container if accessible
+      if (mf.shadowRoot) {
+        const container = mf.shadowRoot.querySelector('.ML__container') || mf.shadowRoot.querySelector(':host');
+        if (container) {
+          (container as HTMLElement).style.backgroundColor = 'transparent';
+        }
+      }
     };
     updateMfTheme();
 
@@ -196,6 +205,7 @@ export const VisualMathEditor: React.FC<VisualMathEditorProps> = ({
             outline: 'none',
             minHeight: '2.5rem',
             cursor: 'text',
+            backgroundColor: 'transparent',
           }}
         >
           {value}

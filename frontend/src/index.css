@@ -45,11 +45,20 @@ body,
 /* Ensure math-field and KaTeX render bright white in dark mode */
 .dark math-field {
   color: #f8fafc !important;
+  background-color: transparent !important;
   --caret-color: #60a5fa !important;
   --selection-background-color: #2563eb !important;
   --selection-color: #ffffff !important;
   --text-highlight-background-color: #1e3a8a !important;
   --primary: #93c5fd !important;
+}
+
+math-field {
+  background-color: transparent !important;
+}
+
+.dark math-field::part(container) {
+  background-color: transparent !important;
 }
 
 .dark math-field::part(content) {
