@@ -1,6 +1,7 @@
 import { TLShapeUtil } from '@tldraw/core';
 import type { TLBounds } from '@tldraw/core';
 import type { RectangleShape, TDMeta } from '@tldraw/tldraw';
+import { V1MathCard } from '../../components/V1MathCard';
 
 export interface V1MathShape extends RectangleShape {
   latex: string;
@@ -44,28 +45,39 @@ export class V1MathShapeUtil extends TLShapeUtil<V1MathShape, HTMLDivElement, TD
   };
 
   Component = TLShapeUtil.Component<V1MathShape, HTMLDivElement, TDMeta>(
-    ({ shape }, ref) => {
+    ({ shape, onShapeChange, meta }, ref) => {
+      const isDarkMode = Boolean(meta?.isDarkMode);
+
       return (
         <div
           ref={ref}
           style={{
             width: shape.size[0],
-            height: shape.size[1],
-            backgroundColor: 'white',
-            borderRadius: '16px',
-            border: '2px solid #3b82f6',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
-            padding: '16px',
-            boxSizing: 'border-box',
+            minHeight: shape.size[1],
             pointerEvents: 'all',
           }}
+          onWheel={(e) => {
+            // Let pinch zoom pass through to canvas
+            if (e.ctrlKey || e.metaKey) return;
+            e.stopPropagation();
+          }}
         >
-          <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#1e293b' }}>
-            {shape.title || 'Выражение'}
-          </div>
-          <div style={{ fontSize: '14px', color: '#64748b' }}>
-            Latex: {shape.latex || '(введите выражение)'}
-          </div>
+          <V1MathCard
+            id={shape.id}
+            latex={shape.latex}
+            resultLatex={shape.resultLatex}
+            title={shape.title}
+            comment={shape.comment}
+            error={shape.error}
+            methodsJson={shape.methodsJson}
+            isDarkMode={isDarkMode}
+            onUpdate={(partial) => {
+              onShapeChange?.({
+                ...shape,
+                ...partial,
+              });
+            }}
+          />
         </div>
       );
     }
