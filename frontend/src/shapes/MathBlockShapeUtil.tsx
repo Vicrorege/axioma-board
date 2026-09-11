@@ -171,6 +171,35 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
   const [activeMethodIndex, setActiveMethodIndex] = useState(0);
   const [showDetails, setShowDetails] = useState(false);
   const hoverStartTimeRef = useRef(0);
+  const cardContainerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-fit card height to content so it never cramps or overflows
+  useEffect(() => {
+    const el = cardContainerRef.current;
+    if (!el) return;
+
+    const measureAndSyncHeight = () => {
+      const neededHeight = el.scrollHeight;
+      if (neededHeight > 0 && Math.abs(neededHeight - h) > 6) {
+        editor.updateShape({
+          id: shape.id,
+          type: 'math-block',
+          props: { h: Math.max(140, Math.ceil(neededHeight)) },
+        });
+      }
+    };
+
+    const timer = setTimeout(measureAndSyncHeight, 40);
+    const ro = new ResizeObserver(() => {
+      measureAndSyncHeight();
+    });
+    ro.observe(el);
+
+    return () => {
+      clearTimeout(timer);
+      ro.disconnect();
+    };
+  }, [shape.id, latex, comment, resultLatex, error, isEditing, h]);
 
   const handleCardWheel = (e: React.WheelEvent) => {
     const now = performance.now();
@@ -280,7 +309,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
     }
   };
 
-  // Branch out: vertical sequence of step cards linked by arrows (as drawn in specification)
+  // Branch out: wrapped multi-column layout of step cards linked by arrows
   const handleBranchOut = () => {
     if (!resultLatex) return;
 
@@ -288,18 +317,26 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
     const stepsList = activeMethod?.steps || [];
 
     if (stepsList.length > 0) {
-      const stepWidth = 380;
-      const stepHeight = 150;
-      const gapY = 32;
-      const stepX = shape.x + w + 130;
+      const stepWidth = 430;
+      const stepHeight = 175;
+      const spacingX = 90;
+      const spacingY = 45;
+      const maxRowsPerCol = stepsList.length > 4 ? 3 : 2;
 
       const stepIds: any[] = [];
+      const stepCoords: { x: number; y: number }[] = [];
 
       stepsList.forEach((stepText, idx) => {
         const stepCardId = createShapeId();
         stepIds.push(stepCardId);
 
-        const stepY = shape.y + idx * (stepHeight + gapY);
+        const col = Math.floor(idx / maxRowsPerCol);
+        const row = idx % maxRowsPerCol;
+
+        const nextX = shape.x + w + spacingX + col * (stepWidth + spacingX);
+        const nextY = shape.y + row * (stepHeight + spacingY);
+        stepCoords.push({ x: nextX, y: nextY });
+
         const isLast = idx === stepsList.length - 1;
 
         const { explanation, formula } = extractFormulaAndExplanation(stepText);
@@ -309,8 +346,8 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
         editor.createShape({
           id: stepCardId,
           type: 'math-block' as any,
-          x: stepX,
-          y: stepY,
+          x: nextX,
+          y: nextY,
           props: {
             w: stepWidth,
             h: stepHeight,
@@ -325,7 +362,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
         });
       });
 
-      // 1. Arrow from Parent Card (right center) to Step 1 (left center)
+      // 1. Arrow from Parent Card to Step 1
       try {
         const firstArrowId = createShapeId();
         editor.createShape({
@@ -335,7 +372,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
           y: shape.y + h / 2,
           props: {
             start: { x: 0, y: 0 },
-            end: { x: 130, y: stepHeight / 2 - h / 2 },
+            end: { x: spacingX, y: stepHeight / 2 - h / 2 },
             bend: 0,
             color: 'violet',
             arrowheadEnd: 'arrow',
@@ -369,21 +406,27 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
         console.warn('Could not create parent to step 1 arrow', e);
       }
 
-      // 2. Sequential vertical arrows from Step[i-1] (bottom center) to Step[i] (top center)
+      // 2. Sequential bound arrows between steps (Step[i-1] -> Step[i])
       for (let i = 1; i < stepIds.length; i++) {
         try {
           const arrowId = createShapeId();
-          const prevY = shape.y + (i - 1) * (stepHeight + gapY);
+          const prevCoord = stepCoords[i - 1];
+          const curCoord = stepCoords[i];
+
+          const isSameCol = Math.abs(curCoord.x - prevCoord.x) < 20;
 
           editor.createShape({
             id: arrowId,
             type: 'arrow',
-            x: stepX + stepWidth / 2,
-            y: prevY + stepHeight,
+            x: isSameCol ? prevCoord.x + stepWidth / 2 : prevCoord.x + stepWidth,
+            y: isSameCol ? prevCoord.y + stepHeight : prevCoord.y + stepHeight / 2,
             props: {
               start: { x: 0, y: 0 },
-              end: { x: 0, y: gapY },
-              bend: 0,
+              end: {
+                x: isSameCol ? 0 : curCoord.x - (prevCoord.x + stepWidth),
+                y: isSameCol ? spacingY : curCoord.y + stepHeight / 2 - (prevCoord.y + stepHeight / 2),
+              },
+              bend: isSameCol ? 0 : 20,
               color: i === stepIds.length - 1 ? 'green' : 'violet',
               arrowheadEnd: 'arrow',
             },
@@ -395,7 +438,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
             toId: stepIds[i - 1],
             props: {
               terminal: 'start',
-              normalizedAnchor: { x: 0.5, y: 1 },
+              normalizedAnchor: isSameCol ? { x: 0.5, y: 1 } : { x: 1, y: 0.5 },
               isPrecise: true,
               isExact: false,
             },
@@ -407,13 +450,13 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
             toId: stepIds[i],
             props: {
               terminal: 'end',
-              normalizedAnchor: { x: 0.5, y: 0 },
+              normalizedAnchor: isSameCol ? { x: 0.5, y: 0 } : { x: 0, y: 0.5 },
               isPrecise: true,
               isExact: false,
             },
           });
         } catch (e) {
-          console.warn(`Could not create vertical arrow between step ${i - 1} and ${i}`, e);
+          console.warn(`Could not create arrow between step ${i - 1} and ${i}`, e);
         }
       }
 
@@ -515,6 +558,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
 
   return (
     <div
+      ref={cardContainerRef}
       data-math-card="true"
       onMouseEnter={() => {
         hoverStartTimeRef.current = performance.now();
@@ -573,7 +617,7 @@ const MathBlockCard: React.FC<MathBlockCardProps> = ({ shape, editor }) => {
       {/* Card Content with isolated scroll events */}
       <div
         onWheel={(e) => e.stopPropagation()}
-        className="flex-1 flex flex-col p-3 gap-2.5 overflow-y-auto"
+        className="flex-1 flex flex-col p-3 gap-2.5 overflow-hidden"
       >
         {/* MathLive Formula Input or Render Mode */}
         {isEditing ? (
