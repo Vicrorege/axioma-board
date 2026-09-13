@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="axioma-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="50%" stop-color="#4f46e5" />
+      <stop offset="100%" stop-color="#7c3aed" />
+    </linearGradient>
+    <filter id="glow" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="3" stdDeviation="2.5" flood-color="#1e1b4b" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <!-- Rounded squircle background -->
+  <rect x="4" y="4" width="56" height="56" rx="16" fill="url(#axioma-grad)" filter="url(#glow)" />
+  <!-- Modern mathematical summation / Sigma glyph -->
+  <path d="M43 19 H23 L33 32 L23 45 H43" fill="none" stroke="#ffffff" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

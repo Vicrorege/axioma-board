@@ -1,0 +1,182 @@
+@import "tailwindcss";
+@import "katex/dist/katex.min.css";
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  overscroll-behavior-x: none;
+  overscroll-behavior-y: none;
+  touch-action: none;
+  user-select: none;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.tl-math-card-container {
+  pointer-events: none !important;
+  overscroll-behavior: contain;
+  overscroll-behavior-x: contain;
+}
+
+.tl-math-card-container > .tl-inner-div {
+  pointer-events: none !important;
+}
+
+.tl-math-card-container [data-math-card="true"] {
+  pointer-events: auto !important;
+}
+
+/* Clean, flicker-free tactile dot grid (Miro / Linear style) */
+.tl-grid {
+  opacity: 0.65 !important;
+  pointer-events: none !important;
+}
+
+/* Hide micro 8px sub-layer that causes moire shimmering & flickering during trackpad scroll */
+#grid-pattern-3,
+#grid-rect-3 {
+  display: none !important;
+}
+
+.tl-grid-dot {
+  fill: #94a3b8;
+  r: 1.35px;
+}
+
+.dark .tl-grid-dot {
+  fill: #64748b;
+  r: 1.35px;
+}
+
+/* Board Title in Header - ultra-crisp high contrast */
+.brand-title {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  font-weight: 800 !important;
+  opacity: 1 !important;
+}
+
+.dark .brand-title {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+input.board-title-input {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  opacity: 1 !important;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+}
+
+.dark input.board-title-input {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+.dark .tlui-menu,
+.dark .tlui-toolbar,
+.dark .tlui-popover__content {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
+  border-color: #334155 !important;
+}
+
+/* Ensure math-field and KaTeX render clean colors adapting to container */
+.dark math-field {
+  color: #f8fafc !important;
+  background-color: transparent !important;
+  --caret-color: #60a5fa !important;
+  --selection-background-color: #2563eb !important;
+  --selection-color: #ffffff !important;
+  --text-highlight-background-color: #1e3a8a !important;
+  --primary: #93c5fd !important;
+}
+
+math-field {
+  background-color: transparent !important;
+}
+
+.dark math-field::part(container) {
+  background-color: transparent !important;
+}
+
+.dark math-field::part(content) {
+  color: inherit !important;
+}
+
+.katex {
+  color: inherit !important;
+}
+
+.katex-html {
+  color: inherit !important;
+}
+
+/* Style Panel emerging directly from bottom toolbar */
+.tlui-style-panel {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.tlui-style-panel__wrapper {
+  margin: 0 !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+@keyframes toolPopOut {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Hide MathLive internal virtual keyboard toggle so there is STRICTLY ONE keyboard button */
+math-field::part(virtual-keyboard-toggle) {
+  display: none !important;
+}
+
+.ML__virtual-keyboard-toggle {
+  display: none !important;
+}
+
+/* MathLive Virtual Keyboard styling & layer */
+.ML__keyboard,
+div[data-ml-keyboard] {
+  z-index: 999999 !important;
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+}
+
+/* Custom scrollbar for math cards and sidebars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.6);
+}
